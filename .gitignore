@@ -218,3 +218,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Photo Mass Editor — private inputs and generated output
+/data/
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.db-wal
+*.db-shm
+!.env.example
+/frontend/node_modules/
+/frontend/dist/
+/backend/.pytest_cache/
