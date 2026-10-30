@@ -34,3 +34,55 @@ May code and mock API clients, but no real AI calls, large-batch execution, clou
 
 ## Completion
 A phase is complete only if documented acceptance checks, tests, report, unresolved risks, and reproduction handoff are present. Record failures and unrun tests honestly. Phase 00 consists solely of governance/specifications, not implementation.
+
+
+## Local Development Environment
+
+### Environment Management
+
+- Python is installed and available through the system `PATH`.
+- The project must use a **dedicated, repository-local Python virtual environment** located at `.venv/`, created using Python's standard `venv` module.
+- The `.venv/` directory must be excluded from Git through `.gitignore`.
+- **All development, execution, debugging, and testing must use this environment exclusively.**
+- Codex and other development agents must not create temporary, alternative, or agent-specific Python environments.
+- System Python may only be used to create or repair `.venv/`, not to execute project code or tests.
+
+### Environment Setup and Reproducibility
+
+- Provide a reproducible environment setup procedure compatible with **Windows PowerShell and Linux**.
+- Prefer a single cross-platform Python setup script, with minimal platform-specific wrappers only when necessary.
+- The setup procedure must:
+  1. Create `.venv/` if it does not exist.
+  2. Install dependencies from version-controlled dependency specifications.
+  3. Update the existing environment when dependencies change.
+  4. Verify the environment, installed dependencies, and Python interpreter.
+- All direct and transitive dependencies must be reproducibly specified, preferably using a lockfile with pinned versions.
+- Use the same environment specification and setup procedure for local development, automated testing, and CI/CD.
+- CI/CD must recreate `.venv/` from the version-controlled specifications rather than copy or reuse a local environment.
+
+### Dependency Management
+
+- Dependencies must not be installed ad hoc without updating the project's dependency specifications.
+- When a development phase introduces, removes, or updates dependencies, the agent must update the dependency declarations, lockfile (if applicable), and environment setup procedure as part of the same phase.
+- All installations and dependency updates must target the repository's `.venv/`.
+- If the environment fails or becomes inconsistent, the agent must diagnose the problem and repair the canonical environment or its setup procedure.
+- **Creating an alternative environment to bypass errors is prohibited.**
+- Dependency and environment changes must be documented in the corresponding phase technical report.
+
+### Execution Rules
+
+- Before running project code, tests, or scripts, verify that the selected Python interpreter belongs to the repository's `.venv/`.
+- Prefer invoking the virtual environment's Python interpreter directly rather than relying on shell activation:
+  - **Windows:** `.venv\\Scripts\\python.exe`
+  - **Linux:** `.venv/bin/python`
+- Run tools and tests through that interpreter whenever possible (for example, `python -m pytest` using the environment's Python).
+- Do not use globally installed Python packages or development tools as substitutes for missing project dependencies.
+- Do not modify the system Python installation or global package environment.
+
+### Testing and CI/CD
+
+- All automated tests, integration tests, and supported development commands must execute within `.venv/`.
+- CI/CD pipelines must create their own repository-local `.venv/` using the documented setup procedure.
+- The environment setup must be repeatable on a clean machine with a compatible Python installation.
+- Any environment-related failures must be reported with their causes, attempted corrections, and remaining limitations.
+- A development phase must not be declared complete until its required tests execute successfully using the canonical environment, unless an explicitly documented and owner-approved exception applies.
