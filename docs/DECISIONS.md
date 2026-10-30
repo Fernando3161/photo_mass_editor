@@ -26,5 +26,21 @@ Default to referencing source files read-only; explicit `--mode copy` creates a 
 
 Use Pillow 13.0.0 for JPEG, PNG, TIFF and WebP inspection and orientation-corrected thumbnails. Defer RAW/HEIC and sidecar interpretation until a supported decoder and metadata policy are selected. Alternative: install broad native format tools now. The narrow dependency keeps local and CI setup reproducible; unsupported files are reported rather than silently imported.
 
+## ADR-009 — Local FastAPI and React review workstation (2026-10-30)
+
+Use a loopback FastAPI service for SQLite/media ownership and a React + TypeScript frontend for the Phase 02 workstation. The production build is served by the same local process. Alternative: a desktop-native GUI. The browser UI supports a rich large-screen workflow while retaining local storage and server-side filesystem boundaries. Node is a development/build dependency; the runtime remains local and makes no network provider call.
+
+## ADR-010 — Optimistic autosave with local recovery (2026-10-30)
+
+Save a photo's metadata and draft fields transactionally with an expected catalog revision. Return a conflict instead of overwriting a newer record. Retain each unsaved form in browser local storage until the server accepts it. Alternative: explicit save only. Autosave reduces repetitive work across roughly 200 photos, while visible states and local recovery prevent silent failure.
+
+## ADR-011 — Top filmstrip and fixed split comparison (2026-10-30)
+
+Place the horizontally virtualized filmstrip above a fixed side-by-side original/edited canvas. Provide a full contact sheet for random access. Alternative placements and overlay comparison remain available for later usability changes. The fixed split makes provenance explicit; Phase 02 labels the empty edited side rather than showing a duplicate or fabricated result.
+
+## ADR-012 — Editable draft presets before prompt assembly (2026-10-30)
+
+Seed three conservative preset records as explicitly draft wording and version each edit. Store preset selection and allowance as review metadata only. Alternative: freeze preset text during Phase 02. Editing the records now lets the owner refine wording, while prompt compilation and any cost-bearing action remain Phase 03 concerns.
+
 ## Governance
 These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here. Development agents leave decision changes unstaged and uncommitted; the owner manually stages and commits them after review. Automatic commits are forbidden.

@@ -29,5 +29,9 @@ Agents leave tested changes unstaged and uncommitted for owner review. Automatic
 
 Follow [the Phase 01 owner photo review](PHASE_01_REVIEW.md) for a private 10–15-photo sample, source hash comparison, repeat import, preflight and thumbnail/metadata inspection. Record results in the Phase 01 report. Keep the sample and evidence out of Git.
 
+## Phase 02 gate
+
+Follow [the Phase 02 owner review](PHASE_02_REVIEW.md). Automated checks must cover API persistence/privacy/conflicts, keyboard navigation, visible autosave state, failed-save recovery, contact-sheet random access, and filmstrip windowing with 200 summaries. Build the production UI after the tests. The owner separately checks the representative private catalog for layout, keyboard flow, filters, readability, persistence, source hashes, and practical review speed. A passing DOM test is not visual approval.
+
 ## Phase 00 gate
 Audit document inventory, reference integrity, phase naming/branch, lifecycle consistency, risk/deferral register. No runnable application, image processing, UI or AI tests should be claimed for Phase 00.

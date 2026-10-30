@@ -171,7 +171,7 @@ class CatalogTests(unittest.TestCase):
         photo_id = import_photo(self.data, source)["id"]
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 2)
             self.assertEqual(db.execute("PRAGMA foreign_keys").fetchone()[0], 1)
             values = (str(uuid4()), photo_id, 1, "edited/test.png", "0" * 64, 20, 10, "2026-01-01T00:00:00Z", "APPROVED")
             db.execute("INSERT INTO image_versions(id,photo_id,version_number,path,sha256,width,height,created_at,review_status) VALUES (?,?,?,?,?,?,?,?,?)", values)
@@ -188,7 +188,7 @@ class CatalogTests(unittest.TestCase):
 
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 2)
         finally:
             db.close()
 
@@ -197,7 +197,7 @@ class CatalogTests(unittest.TestCase):
         command = [sys.executable, "-m", "backend.catalog", "--data-dir", str(self.data)]
         root = Path(__file__).resolve().parents[1]
         initialized = subprocess.run(command + ["init"], cwd=root, capture_output=True, text=True, check=True)
-        self.assertEqual(json.loads(initialized.stdout)["schema_version"], 1)
+        self.assertEqual(json.loads(initialized.stdout)["schema_version"], 2)
         imported = subprocess.run(command + ["import-photo", str(source)], cwd=root,
                                   capture_output=True, text=True, check=True)
         photo_id = json.loads(imported.stdout)["id"]

@@ -4,8 +4,8 @@
 - Branch: `dev/v1-phase-01-catalog`
 - Reviewed Phase 00 baseline: `1652e3f`
 - Implementation commit: `d69fac6`
-- Owner/reviewer: project owner; Phase 01 review pending
-- Recommendation: **INCOMPLETE until owner review of the corrected documentation and branch diff**. The owner reported that the thumbnail and metadata checks pass; source hashes, repeat import, and local automated checks also pass. The owner retains phase approval and manual commit authority.
+- Owner/reviewer: project owner; approved and manually committed as `8ee61fb` (`ph1 reviewed`)
+- Recommendation: **APPROVED**. The owner reported that thumbnail, metadata, source hash, repeat import, and automated checks pass, then authorized Phase 02.
 
 ## Commit policy update (2026-10-30)
 
@@ -24,7 +24,7 @@ The implementation commit listed above is a historical record. For all subsequen
 | Representative owner photo set and visual thumbnail review | PASS | The owner reported that the thumbnails match the source photos. A fresh reference-only review of the same 20 direct phone JPEGs under ignored `data/phase01-review-direct/` captured hashes before import, imported 20 with 0 errors, found 20 valid GPS records and 20 source/thumbnail preflight results `OK`, repeated as 20 existing/0 imported/0 errors, and matched source hashes after import. All 20 new thumbnail hashes equal those in the visually reviewed catalog. Procedure: [Phase 01 owner photo review](../docs/PHASE_01_REVIEW.md) |
 | Owner metadata spot check | PASS | The owner reported that the catalog metadata spot check passed. All 20 catalog rows have capture date, camera and GPS fields; the source EXIF has no lens model, so lens is blank. Private values remain in ignored local evidence. |
 | Windows/Linux CI matrix | NOT_RUN | No Windows/Linux run result is documented here; check GitHub Actions after the owner's manual commit/push |
-| Owner Phase 01 review | NOT_RUN | Owner review pending; no merge or Phase 02 work |
+| Owner Phase 01 review | PASS | Owner approved and manually committed the reviewed Phase 01 baseline as `8ee61fb`, then authorized Phase 02 |
 
 ## Design and implementation
 
@@ -70,4 +70,8 @@ The review guide now creates the review root, input, and catalog directories in 
 
 ## Reproduction and handoff
 
-Follow [the Phase 01 owner photo review](../docs/PHASE_01_REVIEW.md) from the repository root. It specifies the private input and catalog folders, Windows/Linux commands, hash capture, import, catalog listing, preflight, visual inspection, repeat import, and evidence to record above. The default mode is reference-only. The expected local automated result is 14 passing tests. Keep `data/` private and backed up. Owner review of this branch and merge remain separate actions; do not start Phase 02 until authorized.
+Follow [the Phase 01 owner photo review](../docs/PHASE_01_REVIEW.md) from the repository root to reproduce the private catalog check. It specifies folders, Windows/Linux commands, hash capture, import, listing, preflight, visual inspection, and repeat import. The default mode is reference-only. Keep `data/` private and backed up.
+
+## Owner approval update (2026-10-30)
+
+The owner completed the manual review, reported it passed, and manually committed the accepted Phase 01 baseline as `8ee61fb` with message `ph1 reviewed`. The owner then explicitly authorized Phase 02. Earlier pending language above is retained only where it describes the state at the time of an earlier run; this update is the current phase status.

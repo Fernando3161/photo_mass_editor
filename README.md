@@ -2,25 +2,29 @@
 
 Local-first, human-reviewed photography catalog and controlled image-editing project.
 
-**Current status:** Phase 00 was reviewed by the owner. Phase 01 catalog ingestion is implemented on `dev/v1-phase-01-catalog` for owner review. The review UI, AI analysis, editing, and export phases have not begun. `main` remains unchanged.
+**Current status:** Phases 00 and 01 were reviewed by the owner. Phase 02 review workstation changes are on `dev/v1-phase-02-review-ui`, unstaged and uncommitted for owner review. AI analysis, editing, and export have not begun.
 
 **Commit policy:** Development agents leave all changes unstaged and uncommitted. Automatic commits are forbidden. The owner reviews, stages, and commits changes manually.
 
-## Phase 01 setup
+## Development setup
 
-Python 3.11 or newer is required. The same setup script creates or updates the repository-local `.venv` on Windows PowerShell and Linux. It installs `requirements.lock`, checks installed versions and dependencies, and prints the selected interpreter.
+Python 3.11 or newer and Node.js 22 or newer are required. The setup script creates or updates the repository-local `.venv`, installs the exact Python lock, verifies the interpreter and dependencies, installs the exact frontend lock with `npm ci`, and validates the npm tree.
 
 ```powershell
 python scripts/setup_env.py
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+npm --prefix frontend test
+npm --prefix frontend run build
 ```
 
 ```bash
 python scripts/setup_env.py
 .venv/bin/python -m unittest discover -s tests -v
+npm --prefix frontend test
+npm --prefix frontend run build
 ```
 
-CI runs this setup and test sequence on Windows and Linux from a clean checkout. Pillow is the only Phase 01 runtime dependency and has no required transitive Python packages. The lock file pins its version. All project commands below must use the `.venv` interpreter.
+CI runs this sequence on Windows and Linux from a clean checkout. Direct Python requirements are in `requirements.in`; the complete exact environment is in `requirements.lock`. Frontend direct and transitive versions are fixed by `frontend/package-lock.json`. All project Python commands below must use the `.venv` interpreter.
 
 ## Catalog commands
 
@@ -39,6 +43,24 @@ The default `reference` mode reads an original in place without copying it. Pass
 
 No original file is modified by catalog commands. The database, thumbnails, and managed copies are private and ignored by Git. Back up `data/catalog.sqlite` and any managed originals separately; referenced source files remain in their original location. To finish the Phase 01 owner-photo check, follow the [step-by-step review guide](docs/PHASE_01_REVIEW.md); its Windows and Linux commands create the required ignored review folders before importing the sample.
 
+## Local review workstation
+
+Build the frontend, then start the local service against a catalog directory:
+
+```powershell
+npm --prefix frontend run build
+.\.venv\Scripts\python.exe -m backend.review --data-dir data\phase02-review\catalog --host 127.0.0.1 --port 8000
+```
+
+```bash
+npm --prefix frontend run build
+.venv/bin/python -m backend.review --data-dir data/phase02-review/catalog --host 127.0.0.1 --port 8000
+```
+
+Open <http://127.0.0.1:8000>. The workstation provides a top virtualized filmstrip, contact sheet, original/empty-edited comparison, filters, keyboard navigation, metadata/tags, editable draft presets, visible autosave status, and local failed-save recovery. It does not analyze, edit, upload, or publish images. Precise GPS and internal filesystem paths are not returned in photo details.
+
+For a clean private review catalog and source-integrity checks, follow the [Phase 02 owner review guide](docs/PHASE_02_REVIEW.md).
+
 ## Project contracts
 
-Read [agent instructions](AGENTS.md), [objectives](docs/PROJECT_OBJECTIVES.md), [phase plan](docs/PROJECT_PLAN.md), [workflow](docs/DEVELOPMENT_WORKFLOW.md), [data policy](docs/DATA_AND_ARTIFACTS.md), [logical schema](docs/DATABASE_SCHEMA.md), and the [Phase 01 report](reports/PHASE_01_TECHNICAL_REPORT.md) before extending the implementation. Phase transitions, merges, and releases remain owner review gates.
+Read [agent instructions](AGENTS.md), [objectives](docs/PROJECT_OBJECTIVES.md), [phase plan](docs/PROJECT_PLAN.md), [workflow](docs/DEVELOPMENT_WORKFLOW.md), [data policy](docs/DATA_AND_ARTIFACTS.md), [logical schema](docs/DATABASE_SCHEMA.md), and the [Phase 02 report](reports/PHASE_02_TECHNICAL_REPORT.md) before extending the implementation. Phase transitions, merges, and releases remain owner review gates.

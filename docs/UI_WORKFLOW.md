@@ -21,5 +21,6 @@ Hotkeys and buttons for Previous/Next, Save & Next, Approve & Next, Reject & Nex
 ## State
 Distinguish imported/unanalysed, draft ready, queued/running/failed, completed pending approval, rejected, approved; status indicators must be distinguishable without color alone. Persist selected version and filter state per session when feasible. Responsive fallback for phone is optional, not V1 acceptance criterion.
 
-## Unresolved visual choices
-Filmstrip top vs bottom; split vs draggable overlay comparison default; keyboard mapping and mask editor tooling. Resolve by usability testing in Phase 02, not by prematurely committing to an inflexible UI.
+## Phase 02 visual choices
+
+The implemented desktop default uses a persistent top filmstrip and a fixed side-by-side comparison. This keeps random navigation visible above the image area and leaves room for a clear original/edited distinction. Until editing exists, the right pane says **Not edited yet**. Left/right arrows navigate and `G` opens the contact sheet when focus is outside an editable control. Owner usability review can still revise these choices before Phase 02 approval. A draggable overlay and mask editor remain deferred to the editing phase.

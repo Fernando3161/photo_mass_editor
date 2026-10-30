@@ -1,11 +1,12 @@
-# Architecture (Phase 01 catalog implemented; later services proposed)
+# Architecture (Phase 02 local review workstation implemented)
 
 ## Deployment
-Single-user local application with browser UI on a laptop/desktop. Phase 01 implements a Python command line catalog, SQLite migration, and Pillow image inspection/thumbnails. FastAPI backend endpoints, React + TypeScript frontend, processing and AI adapters remain proposed for their later phases. Provider APIs must be server-side only.
+Single-user local application with a browser UI on a laptop/desktop. Phase 01 provides the Python catalog, SQLite base migration, and Pillow inspection/thumbnails. Phase 02 adds a local FastAPI review service, a React + TypeScript workstation, and schema migration 2. Processing and AI adapters remain future-phase work. Provider APIs must be server-side only.
 
-## Proposed layout
+## Current and planned layout
 ```
-backend/{api,database,ingestion,processing,ai,export}/
+backend/catalog/                         # implemented catalog and migrations
+backend/review/                          # implemented local Phase 02 API
 frontend/src/
 prompts/{presets,system}/
 tests/
@@ -18,8 +19,10 @@ AGENTS.md
 ```
 Do not create empty scaffolding folders merely for cosmetic compliance.
 
+FastAPI serves JSON/media endpoints and the production frontend build from one loopback-bound process. Vite is used only for frontend development. The UI requests summaries first and fetches a selected photo's full detail/original on demand. The horizontal filmstrip windows its DOM items; the contact sheet supplies full random access.
+
 ## Key boundaries
-UI displays thumbnails/previews, never embeds API keys, and uses backend endpoints to persist settings and approval. Backend owns database, filesystem paths, model calls, queue, concurrency, logs and export rules. Media remain on local disk; relational DB stores IDs/paths/checksums/structured records, not default full-size image blobs.
+UI displays thumbnails/original comparison media, never embeds API keys, and uses backend endpoints to persist review metadata. Backend owns database and filesystem paths; later it will own model calls, queue, concurrency, logs, and export rules. Media remain on local disk; relational DB stores IDs/paths/checksums/structured records, not full-size image blobs. Photo detail responses omit precise GPS, raw EXIF, hashes, and internal paths.
 Image ingestion, AI observation, prompt compilation, editing execution and review are separate services with explicit persisted states. Original and generated versions never share an output filename.
 
 ## Domain lifecycle

@@ -22,5 +22,11 @@ Website derivative strips precise GPS by default; maintain private GPS separatel
 
 The CLI defaults to read-only source references. Managed copies require `--mode copy`. Catalog records contain absolute source paths, repository-data-relative managed and thumbnail paths, source and thumbnail SHA-256, a stable UUID, and a duplicate candidate link when bytes match another source. `preflight` detects missing/changed media; `relink` accepts a moved original only when its checksum matches. Sidecars and known unsupported RAW/HEIC files are reported without interpretation. Backup/restore automation and an orphan scanner remain future work.
 
+## Phase 02 implemented behavior
+
+The review UI reads media through catalog IDs. Internal source paths, hashes, raw EXIF, and precise GPS are not returned in photo-detail JSON. The frontend receives only `gps_present`; editorial city/country remain separate user fields. Review metadata, tag links, subject selection, review state, draft preset selection, allowance, suggestion text, and user instructions persist in SQLite. A failed browser save is also retained under a per-photo local-storage key until the server accepts it; accepted saves remove that recovery copy.
+
+`frontend/node_modules/`, `frontend/dist/`, local browser state, review screenshots, and `data/phase02-review/` are generated/private artifacts and are not committed. The Phase 02 review procedure creates its input and catalog folders explicitly and verifies source hashes before and after review.
+
 ## Recovery
 Database backup and media-manifest checks should validate physical paths and hashes. Failed writes never assume successful version creation. An orphan scanner should identify missing/unreferenced media without deleting it automatically.

@@ -231,4 +231,5 @@ __marimo__/
 !.env.example
 /frontend/node_modules/
 /frontend/dist/
+/frontend/*.tsbuildinfo
 /backend/.pytest_cache/
