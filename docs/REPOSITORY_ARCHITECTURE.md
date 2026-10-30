@@ -1,7 +1,7 @@
-# Architecture (proposed, not implemented)
+# Architecture (Phase 01 catalog implemented; later services proposed)
 
 ## Deployment
-Single-user local application with browser UI on a laptop/desktop. Python FastAPI backend, React + TypeScript frontend, SQLite with migrations, filesystem-backed originals/thumbnails/versions. Consider Pillow/OpenCV for deterministic operations, ExifTool for metadata, OpenAI API accessed *only* server-side. Exact stack is subject to Phase 00 approval and Phase 01 feasibility check.
+Single-user local application with browser UI on a laptop/desktop. Phase 01 implements a Python command line catalog, SQLite migration, and Pillow image inspection/thumbnails. FastAPI backend endpoints, React + TypeScript frontend, processing and AI adapters remain proposed for their later phases. Provider APIs must be server-side only.
 
 ## Proposed layout
 ```

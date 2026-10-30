@@ -1,0 +1,2 @@
+# Phase 01 runtime dependencies. Pillow has no required transitive Python packages.
+Pillow==13.0.0

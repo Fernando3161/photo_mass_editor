@@ -18,5 +18,13 @@ Keep AGENTS.md guidance and phase reports; no .codex multi-agent orchestration u
 ## ADR-006 — UI navigation (proposed)
 Desktop dual-view, horizontally virtualized filmstrip, full contact sheet and keyboard controls. Specific placement/compare gesture deferred to Phase 02 user testing.
 
+## ADR-007 — Phase 01 reference-first ingestion (2026-10-30)
+
+Default to referencing source files read-only; explicit `--mode copy` creates a managed original. Both modes retain the original path and checksum. Alternative: copy every source on import. Reference mode avoids duplicating a curated library and any inadvertent source relocation; it requires preflight checks when external files move or change. Hash-verified relink retains the UUID after a move. The owner can revisit the default after trying real photos.
+
+## ADR-008 — Phase 01 format and dependency boundary (2026-10-30)
+
+Use Pillow 13.0.0 for JPEG, PNG, TIFF and WebP inspection and orientation-corrected thumbnails. Defer RAW/HEIC and sidecar interpretation until a supported decoder and metadata policy are selected. Alternative: install broad native format tools now. The narrow dependency keeps local and CI setup reproducible; unsupported files are reported rather than silently imported.
+
 ## Governance
 These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here.

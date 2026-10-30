@@ -17,5 +17,9 @@ For each AI analysis: photo/version hash, model, instruction template/version, s
 ## Publication and privacy
 Website derivative strips precise GPS by default; maintain private GPS separately. Editorial city/country may be exported if confirmed. Do not automatically publish identifiable people or sensitive location metadata. Export manifests identify approved version ID, derivative paths/hashes, title/caption/alt text, crop, format and image size. Preserve appropriate copyright/ownership terms; review for commercialization before public release.
 
+## Phase 01 implemented behavior
+
+The CLI defaults to read-only source references. Managed copies require `--mode copy`. Catalog records contain absolute source paths, repository-data-relative managed and thumbnail paths, source and thumbnail SHA-256, a stable UUID, and a duplicate candidate link when bytes match another source. `preflight` detects missing/changed media; `relink` accepts a moved original only when its checksum matches. Sidecars and known unsupported RAW/HEIC files are reported without interpretation. Backup/restore automation and an orphan scanner remain future work.
+
 ## Recovery
 Database backup and media-manifest checks should validate physical paths and hashes. Failed writes never assume successful version creation. An orphan scanner should identify missing/unreferenced media without deleting it automatically.

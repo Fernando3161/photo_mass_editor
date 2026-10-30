@@ -1,6 +1,6 @@
 # Logical database schema — Phase 00 contract
 
-Implementation choice proposed: SQLite + migrations. This is the logical domain model, not an already executed migration. Use UUID primary keys and UTC timestamps; retain original EXIF times with original offset when known.
+Phase 01 now implements SQLite migration `001_catalog.sql` for `photos`, `subjects`, `tags`, `photo_tags`, `image_versions`, and `review_events`. This document remains the full logical domain model; analysis, prompt, job, batch, mask, and export tables await their phases. Use UUID primary keys and UTC timestamps; retain original EXIF times with original offset when known.
 
 ## Entity tables
 - `photos`: id, original_filename, original_path, managed_original_path(nullable), sha256, mime, width, height, imported_at, capture_datetime_raw, capture_offset(nullable), camera/lens, original_exif_json, source_missing(bool), primary_subject_id(nullable), editorial_description, city/country(nullable), private_lat/lon(nullable), revision.
