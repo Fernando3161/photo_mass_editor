@@ -12,7 +12,7 @@ Python 3.11 or newer is required. The same setup script creates or updates the r
 
 ```powershell
 python scripts/setup_env.py
-.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
 ```bash
@@ -24,19 +24,20 @@ CI runs this setup and test sequence on Windows and Linux from a clean checkout.
 
 ## Catalog commands
 
-Run from the repository root, substituting `.venv/bin/python` on Linux. All operational data goes under the ignored `data/` directory by default. `--data-dir` can select another private location.
+Run from the repository root, substituting `.venv/bin/python` on Linux. All operational data goes under the ignored `data/` directory by default; the CLI creates its catalog directory on first use. `--data-dir` can select another private location.
 
 ```powershell
-.venv\Scripts\python.exe -m backend.catalog init
-.venv\Scripts\python.exe -m backend.catalog import-photo "C:\path\to\photo.jpg"
-.venv\Scripts\python.exe -m backend.catalog import-folder "C:\path\to\selected-photos"
-.venv\Scripts\python.exe -m backend.catalog preflight
-.venv\Scripts\python.exe -m backend.catalog relink PHOTO_ID "C:\new\path\to\photo.jpg"
+.\.venv\Scripts\python.exe -m backend.catalog init
+.\.venv\Scripts\python.exe -m backend.catalog import-photo "C:\path\to\photo.jpg"
+.\.venv\Scripts\python.exe -m backend.catalog import-folder "C:\path\to\selected-photos"
+.\.venv\Scripts\python.exe -m backend.catalog list
+.\.venv\Scripts\python.exe -m backend.catalog preflight
+.\.venv\Scripts\python.exe -m backend.catalog relink PHOTO_ID "C:\new\path\to\photo.jpg"
 ```
 
-The default `reference` mode reads an original in place without copying it. Pass `--mode copy` to an import command to explicitly create a managed copy under `data/originals/`. Imports calculate SHA-256, save original path and EXIF/GPS metadata in SQLite, and create an orientation-corrected PNG thumbnail. Supported image formats are JPEG, PNG, TIFF, and WebP. Folder import reports sidecars and known unsupported RAW/HEIC formats without processing them. The preflight command reports missing or changed source, managed, and thumbnail files. A moved source may be relinked to its stable photo ID only when its hash matches.
+The default `reference` mode reads an original in place without copying it. Pass `--mode copy` to an import command to explicitly create a managed copy under `data/originals/`. Imports calculate SHA-256, save original path and EXIF/GPS metadata in SQLite, and create an orientation-corrected PNG thumbnail. The read-only `list` command reports `gps_status`; invalid GPS direction fields leave coordinates empty rather than guessing a location. `city` and `country` are editorial fields and are not filled by Phase 01 ingestion. Supported image formats are JPEG, PNG, TIFF, and WebP. Folder import reports sidecars and known unsupported RAW/HEIC formats without processing them. The preflight command reports missing or changed source, managed, and thumbnail files. A moved source may be relinked to its stable photo ID only when its hash matches.
 
-No original file is modified by catalog commands. The database, thumbnails, and managed copies are private and ignored by Git. Back up `data/catalog.sqlite` and any managed originals separately; referenced source files remain in their original location.
+No original file is modified by catalog commands. The database, thumbnails, and managed copies are private and ignored by Git. Back up `data/catalog.sqlite` and any managed originals separately; referenced source files remain in their original location. To finish the Phase 01 owner-photo check, follow the [step-by-step review guide](docs/PHASE_01_REVIEW.md); its Windows and Linux commands create the required ignored review folders before importing the sample.
 
 ## Project contracts
 

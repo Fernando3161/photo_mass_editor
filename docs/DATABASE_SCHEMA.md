@@ -17,6 +17,8 @@ Phase 01 now implements SQLite migration `001_catalog.sql` for `photos`, `subjec
 - `batches`: id, name, filter_snapshot_json, created_at, initiated_at(nullable), status; `batch_items`: batch_id, photo_id, job_id(nullable), selection_reason.
 - `exports`: id, created_at, target, manifest_path, privacy_policy_version, status; `export_items`: export_id, photo_id, image_version_id, derivative_path, derivative_sha256.
 
+In Phase 01, `private_lat` and `private_lon` are populated only from complete, valid EXIF GPS coordinates and direction references. Missing or invalid N/S or E/W references leave both fields null; the importer does not guess a hemisphere. `city` and `country` are optional editorial fields and are not inferred or reverse-geocoded during ingestion.
+
 ## Required integrity rules
 Unique per-photo version_number, per-file checksums, foreign keys ON. At most ONE current approved version per photo (enforce transactionally or partial unique index). Approval is an explicit atomic change and can revoke prior approval with an audit event; cannot change image bytes. Add `review_events` with actor, timestamp, previous/next state, version_id, optional note for durable approval history. Prompt revisions never silently rewrite executed job inputs.
 

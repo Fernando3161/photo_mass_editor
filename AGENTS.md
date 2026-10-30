@@ -28,6 +28,7 @@ Build a local-first, non-destructive photographic catalog, review workstation, a
 
 ## Development discipline
 Use the active dedicated phase branch; do not modify main. Read its documented scope, implement only that scope, write small tests and phase report, list exactly which tests ran and which did not. Leave the resulting working tree for owner review and manual staging/commit. Never claim visual correctness from software tests alone. Do not begin a new phase or merge without owner review. Use repository-relative paths and no machine-specific configuration.
+Every runnable development or review procedure must create its required generated directories before writing files and verify that required input files exist. Do not rely on empty directories being present in Git; private review data remains ignored. Document commands that work from a fresh PowerShell or Linux shell and record any failed commands and corrections in the phase report.
 Do not introduce .codex subagents by default; introduce only with a measured, documented benefit.
 
 ## Heavy/costly operations

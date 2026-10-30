@@ -6,6 +6,7 @@ Original bytes are immutable authoritative image evidence; EXIF-derived metadata
 ## Zones (all local and git-ignored)
 `data/originals/`: managed copies if chosen; otherwise immutable referenced external paths. `data/thumbnails/`: regenerable previews. `data/masks/`: optional per-attempt masks. `data/edited/`: immutable output versions. `data/exports/`: generated public-facing derivatives. `data/catalog.sqlite`: authoritative operational SQLite state; back up explicitly.
 Do not commit source photos, previews, user GPS locations, raw job responses, or .env secrets. Tiny synthetic, licensed test fixtures may be tracked in tests/.
+These private `data/` directories are intentionally absent from a fresh clone. Each documented review or development procedure must create the directories it needs before reading or writing artifacts. The Phase 01 catalog creates its own catalog directory on first use, while the owner-review procedure explicitly creates the input and evidence directories.
 
 ## Ingestion invariants
 Read-only inspect; compute SHA-256, width/height, file format, camera, lens, EXIF date/time/timezone if present, orientation and GPS as present. Preserve raw metadata snapshot without inventing missing coordinates/timezone. Sidecar files handled explicitly. Stable UUID IDs and content hash; identical bytes may be linked to duplicate candidates instead of silently deleted.

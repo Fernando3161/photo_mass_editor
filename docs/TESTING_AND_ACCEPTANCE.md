@@ -2,6 +2,7 @@
 
 ## Principles
 No test may alter source originals. Test fixtures must be tiny and synthetic/license-safe. CI never calls paid APIs. Record precise commands/results (PASS, FAIL, NOT_RUN with reasons), not vague assertions. Human visual approval is a separate gate from software correctness.
+Every runnable test or owner-review procedure must create its required generated directories and check input existence before use. Do not assume ignored private `data/` folders are present in a fresh clone.
 
 Agents leave tested changes unstaged and uncommitted for owner review. Automatic commits are forbidden; only the owner stages and commits changes after review. A passing test run does not authorize an agent to commit.
 
@@ -23,6 +24,10 @@ Agents leave tested changes unstaged and uncommitted for owner review. Automatic
 - Failed save is visible to user; no silent data loss.
 - Expensive jobs require explicit owner authorization.
 - Completed milestone report contains actual test evidence and open blockers.
+
+## Phase 01 gate
+
+Follow [the Phase 01 owner photo review](PHASE_01_REVIEW.md) for a private 10–15-photo sample, source hash comparison, repeat import, preflight and thumbnail/metadata inspection. Record results in the Phase 01 report. Keep the sample and evidence out of Git.
 
 ## Phase 00 gate
 Audit document inventory, reference integrity, phase naming/branch, lifecycle consistency, risk/deferral register. No runnable application, image processing, UI or AI tests should be claimed for Phase 00.

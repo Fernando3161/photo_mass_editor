@@ -4,6 +4,7 @@
 1. Identify active phase and its acceptance criteria in PROJECT_PLAN; inspect outstanding report.
 2. Create/check out phase branch from last owner-approved baseline; never work directly on main.
 3. Read AGENTS.md and governing docs; record assumptions and decisions.
+   Before giving runnable setup or review commands, create every required generated directory in the procedure and check that required inputs are present. Empty private `data/` folders are not tracked by Git. Verify commands from a fresh PowerShell or Linux shell rather than assuming variables or directories from earlier steps.
 4. Implement only phase scope as reviewable working-tree changes; avoid unrelated refactors. Do not stage or commit changes automatically.
 5. Run fast deterministic unit/integration checks, then phase-specific UI tests; mock paid AI.
 6. Run user-authorized manual/paid/large operations only if needed; log input IDs, API version, counts, and actual cost.

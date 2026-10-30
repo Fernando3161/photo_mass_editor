@@ -201,9 +201,32 @@ class CatalogTests(unittest.TestCase):
         imported = subprocess.run(command + ["import-photo", str(source)], cwd=root,
                                   capture_output=True, text=True, check=True)
         photo_id = json.loads(imported.stdout)["id"]
+        listed = subprocess.run(command + ["list"], cwd=root,
+                                capture_output=True, text=True, check=True)
+        item = json.loads(listed.stdout)[0]
+        self.assertEqual(item["id"], photo_id)
+        self.assertEqual(item["original_filename"], source.name)
+        self.assertTrue(Path(item["thumbnail_path"]).is_file())
+        self.assertFalse(item["gps_present"])
+        self.assertEqual(item["gps_status"], "ABSENT")
         checked = subprocess.run(command + ["preflight"], cwd=root,
                                  capture_output=True, text=True, check=True)
         self.assertEqual(json.loads(checked.stdout)[0]["id"], photo_id)
+
+    def test_cli_reports_invalid_gps_reference_without_guessing_location(self):
+        exif = Image.Exif()
+        exif[34853] = {1: "\x00", 2: (52, 30, 0), 3: "\x00", 4: (13, 24, 0)}
+        source = self.image(exif=exif)
+        photo_id = import_photo(self.data, source)["id"]
+        row = self.row(photo_id)
+        self.assertIsNone(row["private_lat"])
+        self.assertIsNone(row["private_lon"])
+        command = [sys.executable, "-m", "backend.catalog", "--data-dir", str(self.data), "list"]
+        listed = subprocess.run(command, cwd=Path(__file__).resolve().parents[1],
+                                capture_output=True, text=True, check=True)
+        item = json.loads(listed.stdout)[0]
+        self.assertFalse(item["gps_present"])
+        self.assertEqual(item["gps_status"], "INVALID_REFERENCE")
 
 
 if __name__ == "__main__":
