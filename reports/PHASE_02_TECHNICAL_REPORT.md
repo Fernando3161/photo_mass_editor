@@ -3,9 +3,9 @@
 - Date: 2026-10-30
 - Branch: `dev/v1-phase-02-review-ui`
 - Owner-approved Phase 01 baseline: `8ee61fb` (`ph1 reviewed`)
-- Owner/reviewer: project owner; manual Phase 02 review pending
-- Commit state: all Phase 02 changes are unstaged and uncommitted for owner review
-- Recommendation: **READY FOR OWNER REVIEW; NOT YET APPROVED**
+- Owner/reviewer: project owner; approved after manual visual and persistence review
+- Owner commit: `9f88647` (`working ui for editing`)
+- Recommendation: **APPROVED**; the owner authorized Phase 03
 
 ## Scope and acceptance
 
@@ -16,11 +16,11 @@
 | Horizontally virtualized filmstrip | PASS | A 200-photo test verifies a bounded rendered window and distant current selection |
 | Original/edited comparison state | PASS | Original streams by catalog ID; empty edited pane is explicitly labeled and tested |
 | Metadata, optional subject, many tags, conditions, and draft presets | PASS | API persistence tests and UI autosave test |
-| Keyboard navigation, filters, review actions, and status | PASS | UI interaction tests and implemented controls; full owner usability pass remains pending |
+| Keyboard navigation, filters, review actions, and status | PASS | UI interaction tests, implemented controls, and owner usability review |
 | Unsaved-change recovery | PASS | Tests cover failed-save reload recovery and text entered while a save is in flight |
 | Precise GPS and internal path privacy | PASS | API test confirms detail output omits coordinates, hashes, EXIF snapshot, and filesystem paths |
 | Representative owner catalog import | PASS | Separate ignored Phase 02 catalog imported 20 direct-phone photographs with 0 errors; no Phase 01 evidence catalog was changed |
-| Owner visual/usability review | NOT_RUN | Browser automation could not safely attach to the available browser surface; follow `docs/PHASE_02_REVIEW.md` |
+| Owner visual/usability review | PASS | Owner reported the cleaned 20-photo workstation looks correct and confirmed updates persist |
 | Windows/Linux CI matrix | NOT_RUN | Workflow is updated; remote CI cannot run until the owner commits and pushes |
 
 ## Implementation
@@ -77,7 +77,7 @@ With owner authorization, a timestamped SQLite backup was written under ignored 
 
 ## Risks and deferred work
 
-- **Owner gate:** visual layout, readability, and review speed with the representative catalog remain pending.
+- **Owner follow-up:** broader subjective performance with a full ~200-photo catalog can still be revisited, but the owner accepted the current workstation and persistence behavior.
 - **Performance evidence:** the filmstrip has deterministic 200-item windowing coverage, but browser memory and subjective responsiveness on the owner's full catalog are manual checks.
 - **Single-user concurrency:** optimistic revisions prevent silent stale overwrites. There is no multi-user merge UI because the product is local and single-user.
 - **Draft preset language:** the three initial texts are clearly marked draft and editable; final wording requires owner review before prompt assembly.
@@ -85,4 +85,4 @@ With owner authorization, a timestamped SQLite backup was written under ignored 
 
 ## Reproduction and handoff
 
-Follow [the Phase 02 owner review](../docs/PHASE_02_REVIEW.md). It creates the ignored directories, verifies inputs, runs the canonical setup and automated checks, builds a separate catalog, starts the local workstation, verifies source hashes, and lists manual acceptance evidence. Record owner results in this report. Do not begin Phase 03 or merge until the owner explicitly approves Phase 02. The owner manually stages and commits all accepted changes.
+Follow [the Phase 02 owner review](../docs/PHASE_02_REVIEW.md) to reproduce the accepted checks. The owner manually committed Phase 02 as `9f88647`, confirmed that updates save correctly after duplicate-catalog cleanup, accepted the current UI, and explicitly authorized Phase 03. Phase 03 branched from that approved commit.

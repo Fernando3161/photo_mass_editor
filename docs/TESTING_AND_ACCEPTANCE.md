@@ -33,5 +33,9 @@ Follow [the Phase 01 owner photo review](PHASE_01_REVIEW.md) for a private 10–
 
 Follow [the Phase 02 owner review](PHASE_02_REVIEW.md). Automated checks must cover API persistence/privacy/conflicts, keyboard navigation, visible autosave state, failed-save recovery, contact-sheet random access, and filmstrip windowing with 200 summaries. Build the production UI after the tests. The owner separately checks the representative private catalog for layout, keyboard flow, filters, readability, persistence, source hashes, and practical review speed. A passing DOM test is not visual approval.
 
+## Phase 03 gate
+
+Follow [the Phase 03 owner review](PHASE_03_REVIEW.md). Automated tests inject a fake provider and cover authorization denial, bounded requests, cost estimate, cache reuse/invalidation, raw-response isolation, conflict blocking, semantic consent, immutable prompt edits, approval, and stale invalidation. Live provider work is NOT_RUN until the owner selects a provider and explicitly authorizes that run. Manual review verifies inspectable prompt inputs/history and confirms approval never executes an edit.
+
 ## Phase 00 gate
 Audit document inventory, reference integrity, phase naming/branch, lifecycle consistency, risk/deferral register. No runnable application, image processing, UI or AI tests should be claimed for Phase 00.

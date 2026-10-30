@@ -42,5 +42,13 @@ Place the horizontally virtualized filmstrip above a fixed side-by-side original
 
 Seed three conservative preset records as explicitly draft wording and version each edit. Store preset selection and allowance as review metadata only. Alternative: freeze preset text during Phase 02. Editing the records now lets the owner refine wording, while prompt compilation and any cost-bearing action remain Phase 03 concerns.
 
+## ADR-013 — Provider-neutral, fail-closed analysis boundary (2026-10-30)
+
+Define an injected server-side analysis provider and ship Phase 03 with an unavailable default. Alternative: select and embed a specific paid provider now. Provider/model/pricing remain evidence-dependent decisions, so the default cannot make a live call. Every run requires current authorization, a prior cost estimate, and a maximum 25-photo request. Tests use a fake provider with no network.
+
+## ADR-014 — Deterministic versioned prompt compiler (2026-10-30)
+
+Compile approved metadata, preset version, editable suggestion, owner instructions, constraints, allowance, and policy locally. Every compile or owner edit creates an immutable numbered prompt; approval is explicit and becomes stale after draft/photo change. Alternative: ask another model to assemble the prompt. Deterministic compilation is inspectable, testable, and adds no hidden cost.
+
 ## Governance
 These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here. Development agents leave decision changes unstaged and uncommitted; the owner manually stages and commits them after review. Automatic commits are forbidden.

@@ -1,12 +1,12 @@
-name: Phase 02 review workstation
+name: Phase 03 analysis and prompts
 
 on:
   push:
-    branches: ["dev/v1-phase-02-review-ui"]
+    branches: ["dev/v1-phase-03-prompts"]
   pull_request:
 
 jobs:
-  review-tests:
+  phase-tests:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -29,9 +29,9 @@ jobs:
       - name: Run Python tests on Windows
         if: runner.os == 'Windows'
         run: .venv/Scripts/python.exe -m unittest discover -s tests -v
-      - name: Run review UI tests
+      - name: Run workstation tests
         working-directory: frontend
         run: npm test
-      - name: Build review UI
+      - name: Build workstation
         working-directory: frontend
         run: npm run build

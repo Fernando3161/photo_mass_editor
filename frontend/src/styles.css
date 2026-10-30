@@ -126,3 +126,32 @@ kbd { display: inline-block; min-width: 21px; margin-right: 3px; padding: 2px 5p
   .filmstrip-item img { height: 65px; }
   .image-well img { max-height: calc(100vh - 300px); }
 }
+/* Phase 03 analysis and prompt controls */
+.analysis-controls,
+.prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.analysis-controls p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.consent-row {
+  display: flex !important;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.consent-row input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.prompt-panel details {
+  color: var(--text-muted);
+}

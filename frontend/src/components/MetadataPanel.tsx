@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Options, PhotoDetail, Preset, ReviewForm } from '../types'
 
 interface Props {
@@ -8,9 +9,10 @@ interface Props {
   onReviewNext: () => void
   onSaveNext: () => void
   onEditPreset: (preset: Preset) => void
+  promptPanel?: ReactNode
 }
 
-export function MetadataPanel({ photo, form, options, onChange, onReviewNext, onSaveNext, onEditPreset }: Props) {
+export function MetadataPanel({ photo, form, options, onChange, onReviewNext, onSaveNext, onEditPreset, promptPanel }: Props) {
   const selectedPreset = options.presets.find((preset) => preset.id === form.preset_id)
   return (
     <aside className="metadata-panel" aria-label="Photo metadata editor">
@@ -36,12 +38,16 @@ export function MetadataPanel({ photo, form, options, onChange, onReviewNext, on
       </div>
 
       <div className="panel-section form-grid">
-        <div className="span-two section-heading"><div><p className="eyebrow">Preparation</p><h3>Editing draft</h3></div><span className="phase-chip">No AI call</span></div>
+        <div className="span-two section-heading"><div><p className="eyebrow">Preparation</p><h3>Editing draft</h3></div><span className="phase-chip">Editable</span></div>
         <label className="span-two"><span>Draft preset</span><div className="field-with-action"><select value={form.preset_id} onChange={(event) => onChange('preset_id', event.target.value)}><option value="">No preset</option>{options.presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>{selectedPreset && <button type="button" className="text-button" onClick={() => onEditPreset(selectedPreset)}>Edit preset</button>}</div>{selectedPreset && <small>{selectedPreset.structured_instructions}</small>}</label>
-        <label className="span-two range-label"><span>AI allowance: {form.ai_allowance}</span><input type="range" min="0" max="10" value={form.ai_allowance} onChange={(event) => onChange('ai_allowance', Number(event.target.value))} /><small>Application policy only. Values above 3 require explicit semantic-change consent in a later phase.</small></label>
-        <label className="span-two"><span>AI suggested corrections</span><textarea value={form.ai_suggestion_editable} onChange={(event) => onChange('ai_suggestion_editable', event.target.value)} rows={3} placeholder="No analysis run. Suggestions become opt-in in Phase 3." /></label>
+        <label className="span-two range-label"><span>AI allowance: {form.ai_allowance}</span><input type="range" min="0" max="10" value={form.ai_allowance} onChange={(event) => onChange('ai_allowance', Number(event.target.value))} /><small>Application policy only. Values above 3 require explicit semantic-change consent.</small></label>
+        <label className="span-two consent-row"><input type="checkbox" checked={form.semantic_change_consent} onChange={(event) => onChange('semantic_change_consent', event.target.checked)} /> I explicitly allow semantic changes for this draft</label>
+        <label className="span-two"><span>AI suggested corrections</span><textarea value={form.ai_suggestion_editable} onChange={(event) => onChange('ai_suggestion_editable', event.target.value)} rows={3} placeholder="No analysis result adopted" /></label>
         <label className="span-two"><span>My additional instructions</span><textarea value={form.user_instructions} onChange={(event) => onChange('user_instructions', event.target.value)} rows={3} placeholder="Optional notes for a later editing run" /></label>
+        <label className="span-two"><span>Approved constraints</span><textarea value={form.approved_constraints} onChange={(event) => onChange('approved_constraints', event.target.value)} rows={3} placeholder="Example: keep the sky unchanged; preserve faces" /></label>
       </div>
+
+      {promptPanel}
 
       <div className="panel-actions">
         <button type="button" className="button-secondary" onClick={onSaveNext}>Save & next</button>

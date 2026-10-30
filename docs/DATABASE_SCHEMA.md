@@ -1,16 +1,16 @@
-# Logical database schema — Phase 02 implementation and later contract
+# Logical database schema — Phase 03 implementation and later contract
 
-Phase 01 implements SQLite migration `001_catalog.sql` for `photos`, `subjects`, `tags`, `photo_tags`, `image_versions`, and `review_events`. Phase 02 migration `002_review_ui.sql` adds `photos.review_state`, `photos.metadata_reviewed_at`, `presets`, and `review_drafts`. Analysis, compiled prompt, job, batch, mask, and export tables await later phases. Use UUID primary keys and UTC timestamps; retain original EXIF times with original offset when known.
+Phase 01 implements the catalog base. Phase 02 adds metadata review state, presets, and drafts. Phase 03 migration `003_analysis_prompts.sql` adds `analysis_runs`, `compiled_prompts`, approved constraints, semantic-change consent, and the adopted analysis link. Job, batch, mask, and export tables await later phases. Use UUID primary keys and UTC timestamps; retain original EXIF times with original offset when known.
 
 ## Entity tables
 - `photos`: id, original_filename, original_path, managed_original_path(nullable), sha256, mime, width, height, imported_at, capture_datetime_raw, capture_offset(nullable), camera/lens, original_exif_json, source_missing(bool), primary_subject_id(nullable), editorial_description, city/country(nullable), private_lat/lon(nullable), revision.
 - `subjects`: id, slug, display_name; main subject optional, one per photo.
 - `tags`: id, slug, display_name, kind (CONTENT | CONDITION | OTHER).
 - `photo_tags`: photo_id, tag_id, source (AI|USER), user_confirmed, confidence(nullable), UNIQUE(photo_id,tag_id); user edits override AI, without deleting observation history.
-- `analysis_runs`: id, photo_id, source_hash, model, template_version, raw/sanitized output, suggested_primary, suggested_tags, suggested_edits, status, cost/usage(nullable), analyzed_at. Analysis is opt-in and cached by source/config signature.
-- `review_drafts` (Phase 02): id, photo_id(unique), revision, preset_id, ai_allowance(0..10), ai_suggestion_editable, user_instructions, updated_at, saved_at, compiled_prompt_stale. The row is created on first save.
+- `analysis_runs` (Phase 03): id, photo_id, source_hash, provider/model/template/config signature, raw/sanitized output, suggested primary/tags/edits, status, estimate/actual cost, currency, usage, error, analyzed_at. Successful analysis is cached by source/config signature.
+- `review_drafts` (Phase 02/03): id, photo_id(unique), revision, preset, allowance, editable suggestion, owner instructions, approved constraints, semantic consent, adopted analysis ID, timestamps, and compiled-prompt stale flag.
 - `presets` (Phase 02): id, version, name, structured_instructions, updated_at. Three editable draft presets are seeded; every edit increments the version.
-- `compiled_prompts`: id, photo_id, draft_revision, policy_version, compiler_model(nullable), compiled_text, user_modified(bool), approved_for_job(bool), generated_at; input snapshots retained.
+- `compiled_prompts` (Phase 03): immutable numbered versions with parent ID, source/photo/draft revisions, policy/compiler versions, complete input snapshot, compiled text, owner-modified flag, explicit approval, and timestamps.
 - `edit_jobs`: id, batch_id(nullable), photo_id, compiled_prompt_id, source_hash, engine, model(nullable), operation_config_json, mask_id(nullable), status (QUEUED|RUNNING|SUCCEEDED|FAILED|CANCELLED), timestamps, errors, cost/usage, idempotency_key.
 - `image_versions`: id, photo_id, job_id(nullable), version_number, path, sha256, width, height, created_at, review_status (PENDING|APPROVED|REJECTED), reviewed_at(nullable), rejection_reason(nullable). Originals never appear as generated versions.
 - `masks`: id, photo_id, file_path, sha256, width, height, created_at, associated_prompt_id(nullable).

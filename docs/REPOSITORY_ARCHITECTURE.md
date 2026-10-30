@@ -1,12 +1,13 @@
-# Architecture (Phase 02 local review workstation implemented)
+# Architecture (Phase 03 analysis and prompt assembly implemented)
 
 ## Deployment
-Single-user local application with a browser UI on a laptop/desktop. Phase 01 provides the Python catalog, SQLite base migration, and Pillow inspection/thumbnails. Phase 02 adds a local FastAPI review service, a React + TypeScript workstation, and schema migration 2. Processing and AI adapters remain future-phase work. Provider APIs must be server-side only.
+Single-user local application with a browser UI on a laptop/desktop. Phase 01 provides the catalog and image inspection. Phase 02 adds the local FastAPI/React review workstation. Phase 03 adds a server-side analysis-provider boundary, cached provenance, deterministic prompt compiler, and immutable prompt approval. Image processing remains future-phase work. Provider APIs and credentials stay server-side.
 
 ## Current and planned layout
 ```
 backend/catalog/                         # implemented catalog and migrations
 backend/review/                          # implemented local Phase 02 API
+backend/review/{analysis,analysis_service,prompts}.py  # Phase 03 boundaries
 frontend/src/
 prompts/{presets,system}/
 tests/

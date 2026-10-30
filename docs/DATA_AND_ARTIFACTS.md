@@ -28,5 +28,9 @@ The review UI reads media through catalog IDs. Internal source paths, hashes, ra
 
 `frontend/node_modules/`, `frontend/dist/`, local browser state, review screenshots, and `data/phase02-review/` are generated/private artifacts and are not committed. The Phase 02 review procedure creates its input and catalog folders explicitly and verifies source hashes before and after review.
 
+## Phase 03 implemented behavior
+
+Analysis runs retain provider/model/template/config identity, source hash, raw and sanitized output, suggestions, status, usage, and estimate/actual cost. Raw provider responses and source hashes stay server-side. The browser receives sanitized suggestions only. Prompt rows are immutable versions with input snapshots and explicit approval; draft changes make prior approval stale without deleting history. Phase 03 review backups live under ignored `data/phase03-review/backups/`.
+
 ## Recovery
 Database backup and media-manifest checks should validate physical paths and hashes. Failed writes never assume successful version creation. An orphan scanner should identify missing/unreferenced media without deleting it automatically.

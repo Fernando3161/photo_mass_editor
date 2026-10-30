@@ -30,6 +30,10 @@ export interface ReviewDraft {
   ai_allowance: number
   ai_suggestion_editable: string
   user_instructions: string
+  approved_constraints: string
+  semantic_change_consent: number
+  analysis_run_id: string | null
+  compiled_prompt_stale: number
   draft_revision: number
   saved_at: string | null
 }
@@ -44,6 +48,7 @@ export interface PhotoDetail extends PhotoSummary {
   source_missing: number
   draft: ReviewDraft
   versions: Array<{ id: string; version_number: number; review_status: string; created_at: string }>
+  prompt_history: CompiledPrompt[]
 }
 
 export interface Preset {
@@ -71,6 +76,9 @@ export interface ReviewForm {
   ai_allowance: number
   ai_suggestion_editable: string
   user_instructions: string
+  approved_constraints: string
+  semantic_change_consent: boolean
+  analysis_run_id: string | null
   review_state: ReviewState
 }
 
@@ -86,5 +94,45 @@ export interface SavePayload {
   ai_allowance: number
   ai_suggestion_editable: string
   user_instructions: string
+  approved_constraints: string
+  semantic_change_consent: boolean
+  analysis_run_id: string | null
   review_state: ReviewState
+}
+
+export interface AnalysisEstimate {
+  photo_count: number
+  cached_count: number
+  billable_count: number
+  estimated_cost: string
+  currency: string
+  provider: string
+  model: string
+  template_version: string
+  max_batch: number
+}
+
+export interface AnalysisRun {
+  id: string
+  photo_id: string
+  provider: string
+  model: string
+  suggested_primary: string | null
+  suggested_tags: Array<{ display_name: string; kind: 'CONTENT' | 'CONDITION'; confidence?: number }>
+  suggested_edits: string
+  cached: boolean
+  actual_cost: number | null
+}
+
+export interface CompiledPrompt {
+  id: string
+  photo_id: string
+  version_number: number
+  parent_prompt_id: string | null
+  compiled_text: string
+  user_modified: number
+  approved_for_job: number
+  generated_at: string
+  approved_at: string | null
+  input_snapshot: Record<string, unknown>
 }

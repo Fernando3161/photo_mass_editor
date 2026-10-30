@@ -50,6 +50,7 @@ class ReviewApiTests(unittest.TestCase):
         self.assertEqual(detail.status_code, 200)
         self.assertNotIn("private_lat", detail.json())
         self.assertNotIn("private_lon", detail.json())
+        self.assertNotIn("source_hash", detail.text)
         self.assertIn("gps_present", detail.json())
         thumbnail = self.client.get(f"/api/photos/{self.photo_id}/thumbnail")
         self.assertEqual(thumbnail.status_code, 200)
@@ -103,10 +104,10 @@ class ReviewApiTests(unittest.TestCase):
         options = self.client.get("/api/options").json()
         self.assertIn("My natural preset", [item["name"] for item in options["presets"]])
 
-    def test_schema_migrates_existing_catalog_to_version_two(self):
+    def test_schema_migrates_existing_catalog_through_version_three(self):
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 2)
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 3)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM presets").fetchone()[0], 3)
         finally:
             db.close()

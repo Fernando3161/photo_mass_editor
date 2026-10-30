@@ -2,7 +2,7 @@
 
 Local-first, human-reviewed photography catalog and controlled image-editing project.
 
-**Current status:** Phases 00 and 01 were reviewed by the owner. Phase 02 review workstation changes are on `dev/v1-phase-02-review-ui`, unstaged and uncommitted for owner review. AI analysis, editing, and export have not begun.
+**Current status:** Phases 00–02 were reviewed by the owner. Phase 03 analysis and prompt assembly changes are on `dev/v1-phase-03-prompts`, unstaged and uncommitted for owner review. Editing and export have not begun.
 
 **Commit policy:** Development agents leave all changes unstaged and uncommitted. Automatic commits are forbidden. The owner reviews, stages, and commits changes manually.
 
@@ -59,8 +59,10 @@ npm --prefix frontend run build
 
 Open <http://127.0.0.1:8000>. The workstation provides a top virtualized filmstrip, contact sheet, original/empty-edited comparison, filters, keyboard navigation, metadata/tags, editable draft presets, visible autosave status, and local failed-save recovery. It does not analyze, edit, upload, or publish images. Precise GPS and internal filesystem paths are not returned in photo details.
 
-For a clean private review catalog and source-integrity checks, follow the [Phase 02 owner review guide](docs/PHASE_02_REVIEW.md).
+Phase 03 adds explicitly authorized analysis orchestration and versioned prompt assembly. No production provider is configured by default, so analysis fails closed without a network call until the owner selects and configures an adapter. Editable suggestions, owner instructions, constraints, deterministic conflict checks, prompt versions, and prompt approval work locally. Prompt approval does not run an edit.
+
+For review procedures, follow the [Phase 02 owner review guide](docs/PHASE_02_REVIEW.md) and [Phase 03 owner review guide](docs/PHASE_03_REVIEW.md).
 
 ## Project contracts
 
-Read [agent instructions](AGENTS.md), [objectives](docs/PROJECT_OBJECTIVES.md), [phase plan](docs/PROJECT_PLAN.md), [workflow](docs/DEVELOPMENT_WORKFLOW.md), [data policy](docs/DATA_AND_ARTIFACTS.md), [logical schema](docs/DATABASE_SCHEMA.md), and the [Phase 02 report](reports/PHASE_02_TECHNICAL_REPORT.md) before extending the implementation. Phase transitions, merges, and releases remain owner review gates.
+Read [agent instructions](AGENTS.md), [objectives](docs/PROJECT_OBJECTIVES.md), [phase plan](docs/PROJECT_PLAN.md), [workflow](docs/DEVELOPMENT_WORKFLOW.md), [data policy](docs/DATA_AND_ARTIFACTS.md), [logical schema](docs/DATABASE_SCHEMA.md), and the [Phase 03 report](reports/PHASE_03_TECHNICAL_REPORT.md) before extending the implementation. Phase transitions, merges, and releases remain owner review gates.

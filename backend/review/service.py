@@ -62,7 +62,8 @@ def _photo(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
     item["tags"] = _tags(db, photo_id)
     draft = db.execute(
         """SELECT preset_id, ai_allowance, ai_suggestion_editable, user_instructions,
-                  revision AS draft_revision, saved_at
+                  approved_constraints, semantic_change_consent, analysis_run_id,
+                  compiled_prompt_stale, revision AS draft_revision, saved_at
            FROM review_drafts WHERE photo_id = ?""",
         (photo_id,),
     ).fetchone()
@@ -71,6 +72,10 @@ def _photo(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
         "ai_allowance": 0,
         "ai_suggestion_editable": "",
         "user_instructions": "",
+        "approved_constraints": "",
+        "semantic_change_consent": 0,
+        "analysis_run_id": None,
+        "compiled_prompt_stale": 1,
         "draft_revision": 0,
         "saved_at": None,
     }
@@ -80,6 +85,8 @@ def _photo(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
         (photo_id,),
     ).fetchall()
     item["versions"] = [dict(version) for version in versions]
+    from .prompts import prompt_history
+    item["prompt_history"] = prompt_history(db, photo_id)
     return item
 
 
@@ -185,6 +192,14 @@ def save_photo(data_dir: Path, photo_id: str, payload: dict[str, Any]) -> dict[s
         if row["revision"] != payload["expected_revision"]:
             raise ReviewConflict(f"expected revision {payload['expected_revision']}, found {row['revision']}")
         subject_id = _upsert_subject(db, payload.get("primary_subject"))
+        analysis_run_id = payload.get("analysis_run_id")
+        if analysis_run_id:
+            analysis = db.execute(
+                "SELECT id FROM analysis_runs WHERE id=? AND photo_id=? AND status='SUCCEEDED'",
+                (analysis_run_id, photo_id),
+            ).fetchone()
+            if analysis is None:
+                raise ReviewNotFound(analysis_run_id)
         now = utc_now()
         reviewed_at = now if payload["review_state"] == "REVIEWED" else None
         cursor = db.execute(
@@ -201,20 +216,29 @@ def save_photo(data_dir: Path, photo_id: str, payload: dict[str, Any]) -> dict[s
         if existing:
             db.execute(
                 """UPDATE review_drafts SET preset_id = ?, ai_allowance = ?, ai_suggestion_editable = ?,
-                          user_instructions = ?, revision = revision + 1, updated_at = ?, saved_at = ?,
+                          user_instructions = ?, approved_constraints = ?, semantic_change_consent = ?,
+                          analysis_run_id = ?, revision = revision + 1, updated_at = ?, saved_at = ?,
                           compiled_prompt_stale = 1 WHERE photo_id = ?""",
                 (payload["preset_id"], payload["ai_allowance"], payload["ai_suggestion_editable"],
-                 payload["user_instructions"], now, now, photo_id),
+                 payload["user_instructions"], payload["approved_constraints"],
+                 int(payload["semantic_change_consent"]), analysis_run_id, now, now, photo_id),
             )
         else:
             db.execute(
                 """INSERT INTO review_drafts(
                        id, photo_id, revision, preset_id, ai_allowance, ai_suggestion_editable,
-                       user_instructions, updated_at, saved_at, compiled_prompt_stale
-                   ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, 1)""",
+                       user_instructions, approved_constraints, semantic_change_consent,
+                       analysis_run_id, updated_at, saved_at, compiled_prompt_stale
+                   ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
                 (str(uuid4()), photo_id, payload["preset_id"], payload["ai_allowance"],
-                 payload["ai_suggestion_editable"], payload["user_instructions"], now, now),
+                 payload["ai_suggestion_editable"], payload["user_instructions"],
+                 payload["approved_constraints"], int(payload["semantic_change_consent"]),
+                 analysis_run_id, now, now),
             )
+        db.execute(
+            "UPDATE compiled_prompts SET approved_for_job=0, approved_at=NULL WHERE photo_id=? AND approved_for_job=1",
+            (photo_id,),
+        )
         db.commit()
         return _photo(db, photo_id)
     except Exception:
@@ -246,6 +270,17 @@ def update_preset(data_dir: Path, preset_id: str, name: str, instructions: str) 
         )
         if cursor.rowcount != 1:
             raise ReviewNotFound(preset_id)
+        affected = [row["photo_id"] for row in db.execute(
+            "SELECT photo_id FROM review_drafts WHERE preset_id=?", (preset_id,)
+        )]
+        db.execute("UPDATE review_drafts SET compiled_prompt_stale=1 WHERE preset_id=?", (preset_id,))
+        if affected:
+            placeholders = ",".join("?" for _ in affected)
+            db.execute(
+                f"UPDATE compiled_prompts SET approved_for_job=0, approved_at=NULL "
+                f"WHERE approved_for_job=1 AND photo_id IN ({placeholders})",
+                affected,
+            )
         db.commit()
         return dict(db.execute(
             "SELECT id, version, name, structured_instructions, updated_at FROM presets WHERE id = ?",

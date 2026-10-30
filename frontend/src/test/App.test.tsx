@@ -14,7 +14,8 @@ const detail = (summary: PhotoSummary): PhotoDetail => ({
   original_url: `/api/photos/${summary.id}/original`,
   editorial_description: '', lens: null, orientation: 1, capture_offset: null,
   gps_present: true, source_missing: 0, versions: [],
-  draft: { preset_id: null, ai_allowance: 0, ai_suggestion_editable: '', user_instructions: '', draft_revision: 0, saved_at: null },
+  draft: { preset_id: null, ai_allowance: 0, ai_suggestion_editable: '', user_instructions: '', approved_constraints: '', semantic_change_consent: 0, analysis_run_id: null, compiled_prompt_stale: 1, draft_revision: 0, saved_at: null },
+  prompt_history: [],
 })
 
 function mockFetch(saveFails = false, saveGate?: Promise<void>) {
@@ -23,6 +24,7 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>) {
     const url = String(input)
     if (url === '/api/photos' && !init) return Response.json(catalog)
     if (url === '/api/options') return Response.json({ subjects: [], tags: [], presets: [{ id: 'natural', version: 1, name: 'Natural', structured_instructions: 'Keep it natural', updated_at: 'now' }] })
+    if (url === '/api/photos/one/prompts/compile' && init?.method === 'POST') return Response.json({ id: 'prompt-1', photo_id: 'one', version_number: 1, parent_prompt_id: null, compiled_text: 'Preserve documentary authenticity.', user_modified: 0, approved_for_job: 0, generated_at: 'now', approved_at: null, input_snapshot: {} })
     if (url.startsWith('/api/photos/') && init?.method === 'PATCH') {
       if (saveGate) await saveGate
       if (saveFails) return Response.json({ detail: 'Database unavailable' }, { status: 500 })
@@ -30,7 +32,7 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>) {
       const payload = JSON.parse(String(init.body))
       catalog = catalog.map((item) => item.id === id ? { ...item, ...payload, revision: item.revision + 1 } : item)
       const saved = catalog.find((item) => item.id === id)!
-      return Response.json({ ...detail(saved), editorial_description: payload.editorial_description, city: payload.city, country: payload.country, primary_subject: payload.primary_subject, review_state: payload.review_state, revision: saved.revision, tags: [], draft: { ...detail(saved).draft, preset_id: payload.preset_id, ai_allowance: payload.ai_allowance, ai_suggestion_editable: payload.ai_suggestion_editable, user_instructions: payload.user_instructions, draft_revision: 1, saved_at: 'now' } })
+      return Response.json({ ...detail(saved), editorial_description: payload.editorial_description, city: payload.city, country: payload.country, primary_subject: payload.primary_subject, review_state: payload.review_state, revision: saved.revision, tags: [], draft: { ...detail(saved).draft, preset_id: payload.preset_id, ai_allowance: payload.ai_allowance, ai_suggestion_editable: payload.ai_suggestion_editable, user_instructions: payload.user_instructions, approved_constraints: payload.approved_constraints, semantic_change_consent: payload.semantic_change_consent ? 1 : 0, analysis_run_id: payload.analysis_run_id, compiled_prompt_stale: 1, draft_revision: 1, saved_at: 'now' } })
     }
     if (url === '/api/photos/one') return Response.json(detail(catalog[0]))
     if (url === '/api/photos/two') return Response.json(detail(catalog[1]))
@@ -105,5 +107,16 @@ describe('review workstation', () => {
     expect(dialog).toBeTruthy()
     await userEvent.click(within(dialog).getByRole('button', { name: /second.jpg/i }))
     expect(await screen.findByText('second.jpg')).toBeTruthy()
+  })
+
+  it('compiles an inspectable prompt preview after the draft is saved', async () => {
+    mockFetch()
+    const user = userEvent.setup()
+    render(<App />)
+    await user.type(await screen.findByLabelText('My additional instructions'), 'Preserve texture')
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('All changes saved'), { timeout: 2500 })
+    await user.click(screen.getByRole('button', { name: 'Compile prompt preview' }))
+    expect(await screen.findByDisplayValue('Preserve documentary authenticity.')).toBeTruthy()
+    expect(screen.getByText('Version 1 · Pending approval')).toBeTruthy()
   })
 })

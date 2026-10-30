@@ -4,8 +4,9 @@ import { ContactSheet } from './components/ContactSheet'
 import { Filmstrip } from './components/Filmstrip'
 import { FilterBar, type Filters } from './components/FilterBar'
 import { MetadataPanel } from './components/MetadataPanel'
+import { PromptPanel } from './components/PromptPanel'
 import { ReviewCanvas } from './components/ReviewCanvas'
-import type { Options, PhotoDetail, PhotoSummary, Preset, ReviewForm, ReviewState, SavePayload } from './types'
+import type { AnalysisEstimate, CompiledPrompt, Options, PhotoDetail, PhotoSummary, Preset, ReviewForm, ReviewState, SavePayload } from './types'
 import './styles.css'
 
 type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'error' | 'recovered'
@@ -25,6 +26,9 @@ function formFromPhoto(photo: PhotoDetail): ReviewForm {
     ai_allowance: photo.draft.ai_allowance,
     ai_suggestion_editable: photo.draft.ai_suggestion_editable,
     user_instructions: photo.draft.user_instructions,
+    approved_constraints: photo.draft.approved_constraints || '',
+    semantic_change_consent: Boolean(photo.draft.semantic_change_consent),
+    analysis_run_id: photo.draft.analysis_run_id || null,
     review_state: photo.review_state,
   }
 }
@@ -55,6 +59,11 @@ export default function App() {
   const [gridOpen, setGridOpen] = useState(false)
   const [presetEdit, setPresetEdit] = useState<Preset | null>(null)
   const [loading, setLoading] = useState(true)
+  const [analysisEstimate, setAnalysisEstimate] = useState<AnalysisEstimate | null>(null)
+  const [analysisAuthorized, setAnalysisAuthorized] = useState(false)
+  const [phase3Busy, setPhase3Busy] = useState(false)
+  const [prompt, setPrompt] = useState<CompiledPrompt | null>(null)
+  const [promptText, setPromptText] = useState('')
   const editGeneration = useRef(0)
   const formRef = useRef<ReviewForm | null>(null)
   const saveInFlight = useRef(false)
@@ -95,6 +104,11 @@ export default function App() {
       }
       setPhoto(loaded)
       setForm(nextForm)
+      const latestPrompt = loaded.prompt_history?.[0] || null
+      setPrompt(latestPrompt)
+      setPromptText(latestPrompt?.compiled_text || '')
+      setAnalysisEstimate(null)
+      setAnalysisAuthorized(false)
       formRef.current = nextForm
       editGeneration.current = 0
       setError('')
@@ -129,6 +143,9 @@ export default function App() {
     try {
       const saved = await api.savePhoto(photo.id, payloadFromForm(nextForm, photo.revision))
       setPhoto(saved)
+      const latestPrompt = saved.prompt_history?.[0] || null
+      setPrompt(latestPrompt)
+      setPromptText(latestPrompt?.compiled_text || '')
       setPhotos((current) => current.map((item) => item.id === saved.id ? {
         ...item,
         city: saved.city,
@@ -181,6 +198,16 @@ export default function App() {
     localStorage.setItem(recoveryKey(photo.id), JSON.stringify({ baseRevision: photo.revision, form: next }))
   }
 
+  const replaceWithUnsavedForm = (next: ReviewForm) => {
+    if (!photo) return
+    editGeneration.current += 1
+    formRef.current = next
+    setForm(next)
+    setSaveStatus('unsaved')
+    setError('')
+    localStorage.setItem(recoveryKey(photo.id), JSON.stringify({ baseRevision: photo.revision, form: next }))
+  }
+
   const move = useCallback(async (delta: number, state?: ReviewState) => {
     if (!(await saveNow(state))) return
     const source = filtered.length ? filtered : photos
@@ -220,10 +247,93 @@ export default function App() {
     try {
       const saved = await api.savePreset(presetEdit)
       setOptions((current) => ({ ...current, presets: current.presets.map((preset) => preset.id === saved.id ? saved : preset) }))
+      if (form?.preset_id === saved.id) {
+        setPrompt((current) => current ? { ...current, approved_for_job: 0, approved_at: null } : current)
+        setPhoto((current) => current ? { ...current, prompt_history: current.prompt_history.map((item) => ({ ...item, approved_for_job: 0, approved_at: null })) } : current)
+      }
       setPresetEdit(null)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Preset save failed')
     }
+  }
+
+  const estimateCurrentAnalysis = async () => {
+    if (!photo) return
+    setPhase3Busy(true)
+    try {
+      setAnalysisEstimate(await api.estimateAnalysis([photo.id]))
+      setError('')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Analysis estimate failed')
+    } finally { setPhase3Busy(false) }
+  }
+
+  const runCurrentAnalysis = async () => {
+    if (!photo || !form || !analysisAuthorized) return
+    setPhase3Busy(true)
+    try {
+      const result = await api.runAnalysis([photo.id], true)
+      const run = result.results[0]
+      const mergeTags = (current: string, kind: 'CONTENT' | 'CONDITION') => {
+        const values = [...current.split(',').map((value) => value.trim()).filter(Boolean),
+          ...run.suggested_tags.filter((tag) => tag.kind === kind).map((tag) => tag.display_name)]
+        return [...new Set(values)].join(', ')
+      }
+      replaceWithUnsavedForm({
+        ...form,
+        primary_subject: form.primary_subject || run.suggested_primary || '',
+        content_tags: mergeTags(form.content_tags, 'CONTENT'),
+        condition_tags: mergeTags(form.condition_tags, 'CONDITION'),
+        ai_suggestion_editable: form.ai_suggestion_editable || run.suggested_edits,
+        analysis_run_id: run.id,
+      })
+      setAnalysisAuthorized(false)
+      setAnalysisEstimate(null)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Analysis failed')
+    } finally { setPhase3Busy(false) }
+  }
+
+  const compilePrompt = async () => {
+    if (!photo || !(await saveNow())) return
+    setPhase3Busy(true)
+    try {
+      const compiled = await api.compilePrompt(photo.id)
+      setPrompt(compiled)
+      setPromptText(compiled.compiled_text)
+      setPhoto((current) => current ? { ...current, prompt_history: [compiled, ...current.prompt_history] } : current)
+      setError('')
+    } catch (reason) {
+      const conflicts = (reason as Error & { conflicts?: string[] }).conflicts
+      setError(conflicts?.join(' · ') || (reason instanceof Error ? reason.message : 'Prompt compilation failed'))
+    } finally { setPhase3Busy(false) }
+  }
+
+  const savePromptVersion = async () => {
+    if (!prompt) return
+    setPhase3Busy(true)
+    try {
+      const revised = await api.revisePrompt(prompt.id, promptText)
+      setPrompt(revised)
+      setPromptText(revised.compiled_text)
+      setPhoto((current) => current ? { ...current, prompt_history: [revised, ...current.prompt_history] } : current)
+      setError('')
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Prompt save failed') }
+    finally { setPhase3Busy(false) }
+  }
+
+  const approveCurrentPrompt = async () => {
+    if (!prompt) return
+    setPhase3Busy(true)
+    try {
+      const approved = await api.approvePrompt(prompt.id)
+      setPrompt(approved)
+      setPhoto((current) => current ? { ...current, prompt_history: current.prompt_history.map((item) => item.id === approved.id ? approved : { ...item, approved_for_job: 0 }) } : current)
+      setError('')
+    } catch (reason) {
+      const conflicts = (reason as Error & { conflicts?: string[] }).conflicts
+      setError(conflicts?.join(' · ') || (reason instanceof Error ? reason.message : 'Prompt approval failed'))
+    } finally { setPhase3Busy(false) }
   }
 
   const statusText = saveStatus === 'saved' ? 'All changes saved' : saveStatus === 'saving' ? 'Saving changes…' : saveStatus === 'error' ? 'Save failed — draft kept locally' : saveStatus === 'recovered' ? 'Unsaved draft recovered' : 'Unsaved changes'
@@ -242,7 +352,7 @@ export default function App() {
       <FilterBar filters={filters} onChange={setFilters} photos={photos} resultCount={filtered.length} onGrid={() => setGridOpen(true)} />
       <Filmstrip photos={filtered} selectedId={selectedId} onSelect={(id) => void selectPhoto(id)} />
       <main className="workspace">
-        {photo && form ? <><ReviewCanvas photo={photo} /><MetadataPanel photo={photo} form={form} options={options} onChange={change} onSaveNext={() => void move(1)} onReviewNext={() => void move(1, 'REVIEWED')} onEditPreset={setPresetEdit} /></> : <div className="center-message"><p>Select a photo to begin.</p></div>}
+        {photo && form ? <><ReviewCanvas photo={photo} /><MetadataPanel photo={photo} form={form} options={options} onChange={change} onSaveNext={() => void move(1)} onReviewNext={() => void move(1, 'REVIEWED')} onEditPreset={setPresetEdit} promptPanel={<PromptPanel estimate={analysisEstimate} analysisAuthorized={analysisAuthorized} busy={phase3Busy} prompt={prompt} promptText={promptText} promptHistory={photo.prompt_history || []} onEstimate={() => void estimateCurrentAnalysis()} onAuthorized={setAnalysisAuthorized} onRunAnalysis={() => void runCurrentAnalysis()} onCompile={() => void compilePrompt()} onPromptText={setPromptText} onSavePrompt={() => void savePromptVersion()} onApprovePrompt={() => void approveCurrentPrompt()} />} /></> : <div className="center-message"><p>Select a photo to begin.</p></div>}
       </main>
       <footer className="shortcut-bar"><span><kbd>←</kbd><kbd>→</kbd> Navigate</span><span><kbd>G</kbd> Contact sheet</span><span>Changes save automatically</span></footer>
       {gridOpen && <ContactSheet photos={filtered} onClose={() => setGridOpen(false)} onSelect={(id) => { void selectPhoto(id); setGridOpen(false) }} />}

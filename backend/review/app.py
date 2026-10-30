@@ -11,6 +11,12 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from backend.catalog.database import connect
+
+from .analysis import AnalysisProvider, AnalysisUnavailable, UnavailableAnalysisProvider
+from .analysis_service import estimate_analysis, run_analysis
+from .prompts import PromptConflict, approve_prompt, create_compiled_prompt, revise_prompt
+
 from .service import (
     ReviewConflict,
     ReviewNotFound,
@@ -35,6 +41,9 @@ class ReviewSave(BaseModel):
     ai_allowance: int = Field(default=0, ge=0, le=10)
     ai_suggestion_editable: str = ""
     user_instructions: str = ""
+    approved_constraints: str = ""
+    semantic_change_consent: bool = False
+    analysis_run_id: str | None = None
     review_state: Literal["UNREVIEWED", "IN_PROGRESS", "REVIEWED"] = "IN_PROGRESS"
 
 
@@ -43,14 +52,29 @@ class PresetSave(BaseModel):
     structured_instructions: str = Field(min_length=1, max_length=2000)
 
 
-def create_app(data_dir: Path, frontend_dist: Path | None = None) -> FastAPI:
+class AnalysisBatch(BaseModel):
+    photo_ids: list[str] = Field(min_length=1, max_length=25)
+    authorized: bool = False
+    force_refresh: bool = False
+
+
+class PromptEdit(BaseModel):
+    compiled_text: str = Field(min_length=1, max_length=10000)
+
+
+def create_app(
+    data_dir: Path,
+    frontend_dist: Path | None = None,
+    analysis_provider: AnalysisProvider | None = None,
+) -> FastAPI:
     root = Path(data_dir).resolve()
+    provider = analysis_provider or UnavailableAnalysisProvider()
     app = FastAPI(title="Photo Mass Editor", version="0.2.0")
     app.state.data_dir = root
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-        allow_methods=["GET", "PATCH"],
+        allow_methods=["GET", "PATCH", "POST"],
         allow_headers=["Content-Type"],
     )
 
@@ -98,6 +122,81 @@ def create_app(data_dir: Path, frontend_dist: Path | None = None) -> FastAPI:
             return update_preset(root, preset_id, payload.name, payload.structured_instructions)
         except ReviewNotFound as exc:
             raise HTTPException(status_code=404, detail="Preset not found") from exc
+
+    @app.post("/api/analysis/estimate")
+    def analysis_estimate(payload: AnalysisBatch) -> dict:
+        try:
+            return estimate_analysis(root, payload.photo_ids, provider)
+        except AnalysisUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="Photo not found") from exc
+
+    @app.post("/api/analysis/run")
+    def analysis_run(payload: AnalysisBatch) -> dict:
+        try:
+            return run_analysis(
+                root, payload.photo_ids, provider,
+                authorized=payload.authorized, force_refresh=payload.force_refresh,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except AnalysisUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="Photo not found") from exc
+
+    @app.post("/api/photos/{photo_id}/prompts/compile")
+    def compile_photo_prompt(photo_id: str) -> dict:
+        db = connect(root)
+        try:
+            result = create_compiled_prompt(db, photo_id)
+            db.commit()
+            return result
+        except KeyError as exc:
+            db.rollback()
+            raise HTTPException(status_code=404, detail="Photo not found") from exc
+        except ValueError as exc:
+            db.rollback()
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except PromptConflict as exc:
+            db.rollback()
+            raise HTTPException(status_code=409, detail={"message": "Prompt conflicts", "conflicts": exc.conflicts}) from exc
+        finally:
+            db.close()
+
+    @app.patch("/api/prompts/{prompt_id}")
+    def edit_prompt(prompt_id: str, payload: PromptEdit) -> dict:
+        db = connect(root)
+        try:
+            result = revise_prompt(db, prompt_id, payload.compiled_text)
+            db.commit()
+            return result
+        except KeyError as exc:
+            db.rollback()
+            raise HTTPException(status_code=404, detail="Prompt not found") from exc
+        finally:
+            db.close()
+
+    @app.post("/api/prompts/{prompt_id}/approve")
+    def approve(prompt_id: str) -> dict:
+        db = connect(root)
+        try:
+            result = approve_prompt(db, prompt_id)
+            db.commit()
+            return result
+        except KeyError as exc:
+            db.rollback()
+            raise HTTPException(status_code=404, detail="Prompt not found") from exc
+        except PromptConflict as exc:
+            db.rollback()
+            raise HTTPException(status_code=409, detail={"message": "Prompt is stale", "conflicts": exc.conflicts}) from exc
+        finally:
+            db.close()
 
     dist = Path(frontend_dist).resolve() if frontend_dist else Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if dist.is_dir():

@@ -24,3 +24,7 @@ Distinguish imported/unanalysed, draft ready, queued/running/failed, completed p
 ## Phase 02 visual choices
 
 The implemented desktop default uses a persistent top filmstrip and a fixed side-by-side comparison. This keeps random navigation visible above the image area and leaves room for a clear original/edited distinction. Until editing exists, the right pane says **Not edited yet**. Left/right arrows navigate and `G` opens the contact sheet when focus is outside an editable control. Owner usability review can still revise these choices before Phase 02 approval. A draggable overlay and mask editor remain deferred to the editing phase.
+
+## Phase 03 analysis and prompt flow
+
+Cost preview precedes analysis authorization. The authorization checkbox applies only to the current run and resets afterward. Sanitized suggestions populate editable fields without silently replacing non-empty owner values. The prompt preview shows deterministic assembly from the saved draft, reports conflicts before creating a version, and separates **Save as new version** from **Approve current prompt**. Editing the draft makes an older prompt stale; approval never starts an editing job.
