@@ -24,9 +24,10 @@ Build a local-first, non-destructive photographic catalog, review workstation, a
 - AI API calls, bulk generation, uploads, or paid processing require owner authorization for the current run; prepopulation/analysis also costs money and must be opt-in. Never place provider credentials in browser client code.
 - Distinguish local deterministic image corrections from generative changes. For authentic travel photography default to deterministic processing.
 - User remains responsible for owner approval of phase branch, merge, and release unless expressly delegated.
+- Automatic commits are forbidden. The owner alone stages and commits changes after reviewing them. Development agents must leave all changes unstaged and uncommitted; do not run `git add`, `git commit`, `git commit --amend`, or create commits by another method.
 
 ## Development discipline
-Use the active dedicated phase branch; do not modify main. Read its documented scope, implement only that scope, write small tests and phase report, list exactly which tests ran and which did not. Never claim visual correctness from software tests alone. Do not begin a new phase or merge without owner review. Use repository-relative paths and no machine-specific configuration.
+Use the active dedicated phase branch; do not modify main. Read its documented scope, implement only that scope, write small tests and phase report, list exactly which tests ran and which did not. Leave the resulting working tree for owner review and manual staging/commit. Never claim visual correctness from software tests alone. Do not begin a new phase or merge without owner review. Use repository-relative paths and no machine-specific configuration.
 Do not introduce .codex subagents by default; introduce only with a measured, documented benefit.
 
 ## Heavy/costly operations

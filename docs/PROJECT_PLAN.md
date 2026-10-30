@@ -1,6 +1,6 @@
 # Phase-gated development plan
 
-Each phase uses one dedicated branch, tests, an acceptance gate, a report, and owner review before merge. Feature tasks may use smaller PRs. Start subsequent phase from the last approved baseline—not an unreviewed branch.
+Each phase uses one dedicated branch, tests, an acceptance gate, a report, and owner review before merge. Agents leave changes unstaged and uncommitted; the owner manually stages and commits after review. Automatic commits are forbidden. Feature tasks may use smaller PRs after owner commits. Start subsequent phase from the last approved baseline—not an unreviewed branch.
 
 ## Phase 00 — Foundation and specifications
 Branch: `dev/v1-phase-00-foundation`. Implementation/API calls: forbidden.
@@ -28,4 +28,4 @@ Branch: `dev/v1-phase-05-export`.
 Approved-only export pipeline, EXIF/privacy handling, web derivatives and metadata manifest, cost report, acceptance walk-through with real sample photo batch, cleanup audit. Tests: privacy, export version identity, manifest validity, image dimensions, data recovery. Acceptance: reproducible approved website collection and clear handoff.
 
 ## Phase reviews
-Every phase report records branch/commit, changed files, acceptance PASS/FAIL/NOT_RUN, evidence, test commands, risks, deferred heavy operations, and next-phase recommendation. Block progression on unresolved original integrity or privacy problems.
+Every phase report records the branch and baseline commit, notes that new changes await the owner's manual commit, and records changed files, acceptance PASS/FAIL/NOT_RUN, evidence, test commands, risks, deferred heavy operations, and next-phase recommendation. Block progression on unresolved original integrity or privacy problems.

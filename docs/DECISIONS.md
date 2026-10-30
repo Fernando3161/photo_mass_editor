@@ -27,4 +27,4 @@ Default to referencing source files read-only; explicit `--mode copy` creates a 
 Use Pillow 13.0.0 for JPEG, PNG, TIFF and WebP inspection and orientation-corrected thumbnails. Defer RAW/HEIC and sidecar interpretation until a supported decoder and metadata policy are selected. Alternative: install broad native format tools now. The narrow dependency keeps local and CI setup reproducible; unsupported files are reported rather than silently imported.
 
 ## Governance
-These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here.
+These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here. Development agents leave decision changes unstaged and uncommitted; the owner manually stages and commits them after review. Automatic commits are forbidden.

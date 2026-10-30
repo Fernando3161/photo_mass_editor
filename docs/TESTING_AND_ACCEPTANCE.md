@@ -3,6 +3,8 @@
 ## Principles
 No test may alter source originals. Test fixtures must be tiny and synthetic/license-safe. CI never calls paid APIs. Record precise commands/results (PASS, FAIL, NOT_RUN with reasons), not vague assertions. Human visual approval is a separate gate from software correctness.
 
+Agents leave tested changes unstaged and uncommitted for owner review. Automatic commits are forbidden; only the owner stages and commits changes after review. A passing test run does not authorize an agent to commit.
+
 ## Layers
 1. Documentation contract: required paths, readable links, no contradictory branch names/policies, references to proposed vs implemented kept explicit.
 2. Unit: EXIF parse including missing/invalid values, file hash, safe paths, DB invariants, tag relations, prompt resolver/conflict checks and state machine.

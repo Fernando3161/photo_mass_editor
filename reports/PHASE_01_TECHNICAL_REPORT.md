@@ -7,6 +7,10 @@
 - Owner/reviewer: project owner; Phase 01 review pending
 - Recommendation: **INCOMPLETE until owner acceptance and a representative real-photo import check**. Engineering checks on synthetic data pass.
 
+## Commit policy update (2026-10-30)
+
+The implementation commit listed above is a historical record. For all subsequent work, automatic commits are forbidden: development agents leave changes unstaged and uncommitted, and the owner manually stages and commits after review. This report update is itself left for owner review and manual commit.
+
 ## Scope and acceptance
 
 | Check | Status | Evidence |

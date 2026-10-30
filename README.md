@@ -4,6 +4,8 @@ Local-first, human-reviewed photography catalog and controlled image-editing pro
 
 **Current status:** Phase 00 was reviewed by the owner. Phase 01 catalog ingestion is implemented on `dev/v1-phase-01-catalog` for owner review. The review UI, AI analysis, editing, and export phases have not begun. `main` remains unchanged.
 
+**Commit policy:** Development agents leave all changes unstaged and uncommitted. Automatic commits are forbidden. The owner reviews, stages, and commits changes manually.
+
 ## Phase 01 setup
 
 Python 3.11 or newer is required. The same setup script creates or updates the repository-local `.venv` on Windows PowerShell and Linux. It installs `requirements.lock`, checks installed versions and dependencies, and prints the selected interpreter.

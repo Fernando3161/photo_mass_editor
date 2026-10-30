@@ -1,6 +1,8 @@
 # Phase XX engineering report template
 
-- Phase / branch / commit / date:
+- Phase / branch / baseline commit / date:
+- Working-tree status: changes unstaged and uncommitted for owner review; owner commit (if later supplied):
+- Do not stage or commit while preparing the report; the owner performs those steps after review.
 - Owner / reviewer:
 - Scope and acceptance criteria: table with PASS / FAIL / NOT_RUN and evidence.
 - Inputs / provenance: source docs, fixture IDs, catalog schema/migration version.
