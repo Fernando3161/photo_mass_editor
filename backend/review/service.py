@@ -61,7 +61,7 @@ def _photo(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
     item["original_url"] = _media_url(photo_id, "original")
     item["tags"] = _tags(db, photo_id)
     draft = db.execute(
-        """SELECT preset_id, ai_allowance, ai_suggestion_editable, user_instructions,
+        """SELECT preset_id, publication_profile_id, ai_allowance, ai_suggestion_editable, user_instructions,
                   approved_constraints, semantic_change_consent, analysis_run_id,
                   compiled_prompt_stale, revision AS draft_revision, saved_at
            FROM review_drafts WHERE photo_id = ?""",
@@ -69,6 +69,7 @@ def _photo(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
     ).fetchone()
     item["draft"] = dict(draft) if draft else {
         "preset_id": None,
+        "publication_profile_id": "website-standard-v1",
         "ai_allowance": 0,
         "ai_suggestion_editable": "",
         "user_instructions": "",
@@ -191,6 +192,12 @@ def save_photo(data_dir: Path, photo_id: str, payload: dict[str, Any]) -> dict[s
             raise ReviewNotFound(photo_id)
         if row["revision"] != payload["expected_revision"]:
             raise ReviewConflict(f"expected revision {payload['expected_revision']}, found {row['revision']}")
+        profile = db.execute(
+            "SELECT id FROM publication_profiles WHERE id=? AND active=1",
+            (payload["publication_profile_id"],),
+        ).fetchone()
+        if profile is None:
+            raise ReviewNotFound(payload["publication_profile_id"])
         subject_id = _upsert_subject(db, payload.get("primary_subject"))
         analysis_run_id = payload.get("analysis_run_id")
         if analysis_run_id:
@@ -215,22 +222,22 @@ def save_photo(data_dir: Path, photo_id: str, payload: dict[str, Any]) -> dict[s
         existing = db.execute("SELECT id, revision FROM review_drafts WHERE photo_id = ?", (photo_id,)).fetchone()
         if existing:
             db.execute(
-                """UPDATE review_drafts SET preset_id = ?, ai_allowance = ?, ai_suggestion_editable = ?,
+                """UPDATE review_drafts SET preset_id = ?, publication_profile_id = ?, ai_allowance = ?, ai_suggestion_editable = ?,
                           user_instructions = ?, approved_constraints = ?, semantic_change_consent = ?,
                           analysis_run_id = ?, revision = revision + 1, updated_at = ?, saved_at = ?,
                           compiled_prompt_stale = 1 WHERE photo_id = ?""",
-                (payload["preset_id"], payload["ai_allowance"], payload["ai_suggestion_editable"],
+                (payload["preset_id"], payload["publication_profile_id"], payload["ai_allowance"], payload["ai_suggestion_editable"],
                  payload["user_instructions"], payload["approved_constraints"],
                  int(payload["semantic_change_consent"]), analysis_run_id, now, now, photo_id),
             )
         else:
             db.execute(
                 """INSERT INTO review_drafts(
-                       id, photo_id, revision, preset_id, ai_allowance, ai_suggestion_editable,
+                       id, photo_id, revision, preset_id, publication_profile_id, ai_allowance, ai_suggestion_editable,
                        user_instructions, approved_constraints, semantic_change_consent,
                        analysis_run_id, updated_at, saved_at, compiled_prompt_stale
-                   ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
-                (str(uuid4()), photo_id, payload["preset_id"], payload["ai_allowance"],
+                   ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+                (str(uuid4()), photo_id, payload["preset_id"], payload["publication_profile_id"], payload["ai_allowance"],
                  payload["ai_suggestion_editable"], payload["user_instructions"],
                  payload["approved_constraints"], int(payload["semantic_change_consent"]),
                  analysis_run_id, now, now),
@@ -255,6 +262,11 @@ def list_options(data_dir: Path) -> dict[str, list[dict[str, Any]]]:
             "subjects": [dict(row) for row in db.execute("SELECT id, slug, display_name FROM subjects ORDER BY lower(display_name)")],
             "tags": [dict(row) for row in db.execute("SELECT id, slug, display_name, kind FROM tags ORDER BY kind, lower(display_name)")],
             "presets": [dict(row) for row in db.execute("SELECT id, version, name, structured_instructions, updated_at FROM presets ORDER BY rowid")],
+            "publication_profiles": [dict(row) for row in db.execute(
+                """SELECT id, version, name, image_format, file_extension, mime, max_long_edge,
+                          quality, color_space, preserve_aspect_ratio, allow_upscale, strip_metadata
+                   FROM publication_profiles WHERE active=1 ORDER BY name, version"""
+            )],
         }
     finally:
         db.close()

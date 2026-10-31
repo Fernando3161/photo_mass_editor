@@ -15,6 +15,7 @@ Build a local-first, non-destructive photographic catalog, review workstation, a
 
 ## Non-negotiable invariants
 - Never overwrite, recompress, rename in place, or otherwise mutate source photographs. Preserve SHA-256, EXIF extraction, and original path; copy only when explicitly importing into managed storage.
+- Generative editing must never receive the original photograph as its image input. First create an immutable, traceable derivative using the selected publication profile; send that publication-sized derivative to the editing provider and retain its source/profile hashes.
 - Store paths/metadata in SQLite and images on disk; never commit private photographs, SQLite operational files, API keys, or generated full-resolution outputs.
 - Photo categories/tags are many-to-many. Primary subject is optional; tags are multi-valued. AI predictions are suggestions, not authoritative labels.
 - Preserve distinct AI-suggested instructions, user instructions, approved constraints, compiled prompt, model/settings, and each editing attempt. A compiled prompt is editable and versioned.

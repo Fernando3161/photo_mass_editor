@@ -38,6 +38,7 @@ class ReviewSave(BaseModel):
     content_tags: list[str] = Field(default_factory=list)
     condition_tags: list[str] = Field(default_factory=list)
     preset_id: str | None = None
+    publication_profile_id: str = "website-standard-v1"
     ai_allowance: int = Field(default=0, ge=0, le=10)
     ai_suggestion_editable: str = ""
     user_instructions: str = ""

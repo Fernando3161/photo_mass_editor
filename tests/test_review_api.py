@@ -34,6 +34,7 @@ class ReviewApiTests(unittest.TestCase):
             "content_tags": ["facade", "stone"],
             "condition_tags": ["golden hour"],
             "preset_id": "architecture-clarity",
+            "publication_profile_id": "website-standard-v1",
             "ai_allowance": 2,
             "ai_suggestion_editable": "",
             "user_instructions": "Preserve the masonry texture",
@@ -67,6 +68,7 @@ class ReviewApiTests(unittest.TestCase):
         self.assertEqual(item["primary_subject"], "Architecture")
         self.assertEqual({tag["display_name"] for tag in item["tags"]}, {"facade", "stone", "golden hour"})
         self.assertEqual(item["draft"]["preset_id"], "architecture-clarity")
+        self.assertEqual(item["draft"]["publication_profile_id"], "website-standard-v1")
         self.assertEqual(item["draft"]["user_instructions"], "Preserve the masonry texture")
         reloaded = self.client.get(f"/api/photos/{self.photo_id}").json()
         self.assertEqual(reloaded["editorial_description"], "Stone facade in warm light")
@@ -104,11 +106,24 @@ class ReviewApiTests(unittest.TestCase):
         options = self.client.get("/api/options").json()
         self.assertIn("My natural preset", [item["name"] for item in options["presets"]])
 
-    def test_schema_migrates_existing_catalog_through_version_three(self):
+    def test_schema_has_eight_presets_and_repeat_startup_preserves_owner_edits(self):
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 3)
-            self.assertEqual(db.execute("SELECT COUNT(*) FROM presets").fetchone()[0], 3)
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 5)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM presets").fetchone()[0], 8)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM publication_profiles").fetchone()[0], 1)
+        finally:
+            db.close()
+        edited = self.client.patch(
+            "/api/presets/natural-balance",
+            json={"name": "My natural preset", "structured_instructions": "My own wording."},
+        )
+        self.assertEqual(edited.status_code, 200)
+        db = connect(self.data)
+        try:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM presets").fetchone()[0], 8)
+            row = db.execute("SELECT name, version, structured_instructions FROM presets WHERE id='natural-balance'").fetchone()
+            self.assertEqual(tuple(row), ("My natural preset", 2, "My own wording."))
         finally:
             db.close()
 

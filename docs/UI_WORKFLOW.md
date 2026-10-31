@@ -9,7 +9,7 @@ Original image left, currently selected edited version right when present; show 
 ## Editing panel
 - Original filename, dimensions, capture metadata, location, current overall progress.
 - Optional primary subject (single), multiple content and condition tags; all AI suggestions editable.
-- Three selectable configurable presets with transparent instructions, numeric AI allowance and semantic-operation warnings.
+- Eight selectable configurable presets with transparent instructions, numeric AI allowance and semantic-operation warnings. The additional choices cover museum artwork, group photos, night architecture, food, and panoramic scenes.
 - Two independent fields: `AI suggested corrections` (pre-populated only after opt-in analysis; editable) and `My additional instructions` (blank initially).
 - Compile/preview final prompt as separate editable version. Show stale prompt when upstream field changes and require recompilation/acknowledgment before run.
 - Save/saving/error status, auto-save with conflict handling; changes survive navigation/reload.
@@ -28,3 +28,5 @@ The implemented desktop default uses a persistent top filmstrip and a fixed side
 ## Phase 03 analysis and prompt flow
 
 Cost preview precedes analysis authorization. The authorization checkbox applies only to the current run and resets afterward. Sanitized suggestions populate editable fields without silently replacing non-empty owner values. The prompt preview shows deterministic assembly from the saved draft, reports conflicts before creating a version, and separates **Save as new version** from **Approve current prompt**. Editing the draft makes an older prompt stale; approval never starts an editing job.
+
+The editing draft shows the selected publication profile and its exact format, maximum long edge, quality, color space, aspect rule, upscale rule, and metadata rule. The compiled prompt snapshots that version. Changing the profile invalidates prompt readiness. Phase 04 will create the derivative and use it as the only generative image input; Phase 03 creates no image artifact.

@@ -14,6 +14,7 @@ interface Props {
 
 export function MetadataPanel({ photo, form, options, onChange, onReviewNext, onSaveNext, onEditPreset, promptPanel }: Props) {
   const selectedPreset = options.presets.find((preset) => preset.id === form.preset_id)
+  const selectedProfile = options.publication_profiles.find((profile) => profile.id === form.publication_profile_id)
   return (
     <aside className="metadata-panel" aria-label="Photo metadata editor">
       <div className="panel-section compact">
@@ -39,6 +40,7 @@ export function MetadataPanel({ photo, form, options, onChange, onReviewNext, on
 
       <div className="panel-section form-grid">
         <div className="span-two section-heading"><div><p className="eyebrow">Preparation</p><h3>Editing draft</h3></div><span className="phase-chip">Editable</span></div>
+        <div className="span-two"><label htmlFor="publication-profile"><span>Publication profile</span></label><select id="publication-profile" value={form.publication_profile_id} onChange={(event) => onChange('publication_profile_id', event.target.value)}>{options.publication_profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name} v{profile.version}</option>)}</select>{selectedProfile && <small>{selectedProfile.image_format} · max long edge {selectedProfile.max_long_edge}px · quality {selectedProfile.quality ?? 'lossless'} · {selectedProfile.color_space} · preserve aspect ratio · {selectedProfile.allow_upscale ? 'upscaling allowed' : 'no upscaling'} · {selectedProfile.strip_metadata ? 'metadata stripped' : 'metadata retained'}. This derivative, never the original, is the future AI editing input.</small>}</div>
         <label className="span-two"><span>Draft preset</span><div className="field-with-action"><select value={form.preset_id} onChange={(event) => onChange('preset_id', event.target.value)}><option value="">No preset</option>{options.presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>{selectedPreset && <button type="button" className="text-button" onClick={() => onEditPreset(selectedPreset)}>Edit preset</button>}</div>{selectedPreset && <small>{selectedPreset.structured_instructions}</small>}</label>
         <label className="span-two range-label"><span>AI allowance: {form.ai_allowance}</span><input type="range" min="0" max="10" value={form.ai_allowance} onChange={(event) => onChange('ai_allowance', Number(event.target.value))} /><small>Application policy only. Values above 3 require explicit semantic-change consent.</small></label>
         <label className="span-two consent-row"><input type="checkbox" checked={form.semantic_change_consent} onChange={(event) => onChange('semantic_change_consent', event.target.checked)} /> I explicitly allow semantic changes for this draft</label>

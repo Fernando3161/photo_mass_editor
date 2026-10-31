@@ -61,6 +61,7 @@ class AnalysisPromptTests(unittest.TestCase):
             "content_tags": ["facade"],
             "condition_tags": ["daylight"],
             "preset_id": "architecture-clarity",
+            "publication_profile_id": "website-standard-v1",
             "ai_allowance": 2,
             "ai_suggestion_editable": "Correct perspective conservatively.",
             "user_instructions": "Preserve the stone texture.",
@@ -126,6 +127,10 @@ class AnalysisPromptTests(unittest.TestCase):
         self.assertEqual(compiled.status_code, 200, compiled.text)
         self.assertEqual(compiled.json()["version_number"], 1)
         self.assertFalse(compiled.json()["approved_for_job"])
+        self.assertEqual(compiled.json()["publication_profile_id"], "website-standard-v1")
+        self.assertEqual(compiled.json()["publication_profile_snapshot"]["max_long_edge"], 1600)
+        self.assertIn("never use or modify the original", compiled.json()["compiled_text"])
+        self.assertIn("maximum long edge 1600 px", compiled.json()["compiled_text"])
 
         edited = self.client.patch(
             f"/api/prompts/{compiled.json()['id']}",
@@ -165,6 +170,23 @@ class AnalysisPromptTests(unittest.TestCase):
         self.assertTrue(detail["draft"]["compiled_prompt_stale"])
         self.assertFalse(detail["prompt_history"][0]["approved_for_job"])
 
+    def test_museum_preset_is_selectable_and_snapshotted(self):
+        options = self.client.get("/api/options").json()["presets"]
+        self.assertEqual(len(options), 8)
+        museum = next(item for item in options if item["id"] == "museum-artwork")
+        self.assertIn("painting or sculpture", museum["structured_instructions"])
+        saved = self.client.patch(
+            f"/api/photos/{self.photo_id}",
+            json=self.save_payload(preset_id="museum-artwork"),
+        )
+        self.assertEqual(saved.status_code, 200, saved.text)
+        compiled = self.client.post(f"/api/photos/{self.photo_id}/prompts/compile")
+        self.assertEqual(compiled.status_code, 200, compiled.text)
+        snapshot = compiled.json()["input_snapshot"]["preset"]
+        self.assertEqual(snapshot["id"], "museum-artwork")
+        self.assertEqual(snapshot["version"], 1)
+        self.assertIn("painting or sculpture", compiled.json()["compiled_text"])
+
     def test_high_allowance_requires_explicit_semantic_consent(self):
         saved = self.client.patch(
             f"/api/photos/{self.photo_id}",
@@ -180,12 +202,26 @@ class AnalysisPromptTests(unittest.TestCase):
         self.assertEqual(allowed.status_code, 200)
         self.assertEqual(self.client.post(f"/api/photos/{self.photo_id}/prompts/compile").status_code, 200)
 
-    def test_schema_version_three_contains_analysis_and_prompt_tables(self):
+    def test_publication_profile_options_and_invalid_selection(self):
+        options = self.client.get("/api/options")
+        self.assertEqual(options.status_code, 200)
+        profile = options.json()["publication_profiles"][0]
+        self.assertEqual(profile["id"], "website-standard-v1")
+        self.assertEqual(profile["image_format"], "JPEG")
+        self.assertEqual(profile["max_long_edge"], 1600)
+        self.assertEqual(profile["quality"], 85)
+        invalid = self.client.patch(
+            f"/api/photos/{self.photo_id}",
+            json=self.save_payload(publication_profile_id="missing-profile"),
+        )
+        self.assertEqual(invalid.status_code, 404)
+
+    def test_schema_version_five_contains_publication_artifact_tables(self):
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 3)
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 5)
             names = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            self.assertTrue({"analysis_runs", "compiled_prompts"}.issubset(names))
+            self.assertTrue({"analysis_runs", "compiled_prompts", "publication_profiles", "publication_inputs"}.issubset(names))
         finally:
             db.close()
 

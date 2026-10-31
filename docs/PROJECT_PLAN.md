@@ -17,15 +17,15 @@ Build contact sheet, virtualized filmstrip, dual compare viewer, metadata editor
 
 ## Phase 03 — Analysis and prompt assembly
 Branch: `dev/v1-phase-03-prompts`.
-Add opt-in AI suggestion generation (bounded batch; cached), image-observation provenance, editable suggestion field, user field, constraint resolver and versioned compiled prompt; preview before paid editing. Tests: API mocks, permission, prompt conflicts, cost estimate, cache, invalidation. Acceptance: user approves or edits compiled prompt; no secret exposed client-side.
+Add opt-in AI suggestion generation (bounded batch; cached), image-observation provenance, editable suggestion field, user field, constraint resolver, selected versioned publication profile, and versioned compiled prompt; preview before paid editing. Tests: API mocks, permission, prompt conflicts, cost estimate, cache, profile snapshot, invalidation. Acceptance: user approves or edits a compiled prompt tied to an exact publication profile; no secret exposed client-side.
 
 ## Phase 04 — Editing engine and versioning
 Branch: `dev/v1-phase-04-processing`.
-Deterministic edits, optional masks and AI adapter, queued jobs, retries, immutable versions, comparisons, approve/reject, job receipts. Tests: original hashes, failure recovery, idempotency, review transitions, concurrency, mocked API, opt-in limited live tests. Acceptance: successful attempt ≠ approval, rejected retained, approved never overwritten, default batch skips approved photos.
+Generate and validate immutable publication inputs before any generative request; the initial profile is JPEG/sRGB, maximum 1600-pixel long edge, quality 85, preserved aspect ratio, no upscaling, and stripped metadata. Add deterministic edits, optional masks and AI adapter, queued jobs, retries, immutable raw attempts and normalized publication versions, comparisons, approve/reject, and job receipts. Tests: original hashes, exact input profile, proof that provider input is the derivative rather than the original, failure recovery, idempotency, review transitions, concurrency, mocked API, and opt-in limited live tests. Acceptance: successful attempt ≠ approval, rejected retained, approved never overwritten, default batch skips approved photos.
 
 ## Phase 05 — Export, audit and usability
 Branch: `dev/v1-phase-05-export`.
-Approved-only export pipeline, EXIF/privacy handling, web derivatives and metadata manifest, cost report, acceptance walk-through with real sample photo batch, cleanup audit. Tests: privacy, export version identity, manifest validity, image dimensions, data recovery. Acceptance: reproducible approved website collection and clear handoff.
+Approved-only export pipeline, EXIF/privacy handling, thumbnails and any target-specific derivatives, metadata manifest, cost report, acceptance walk-through with real sample photo batch, and cleanup audit. The approved website image should already match its publication profile, so export must not silently perform another quality-changing resize. Tests: privacy, export version identity, manifest validity, image dimensions, data recovery. Acceptance: reproducible approved website collection and clear handoff.
 
 ## Phase reviews
 Every phase report records the branch and baseline commit, notes that new changes await the owner's manual commit, and records changed files, acceptance PASS/FAIL/NOT_RUN, evidence, test commands, risks, deferred heavy operations, and next-phase recommendation. Block progression on unresolved original integrity or privacy problems.

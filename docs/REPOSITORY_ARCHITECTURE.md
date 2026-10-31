@@ -1,7 +1,7 @@
 # Architecture (Phase 03 analysis and prompt assembly implemented)
 
 ## Deployment
-Single-user local application with a browser UI on a laptop/desktop. Phase 01 provides the catalog and image inspection. Phase 02 adds the local FastAPI/React review workstation. Phase 03 adds a server-side analysis-provider boundary, cached provenance, deterministic prompt compiler, and immutable prompt approval. Image processing remains future-phase work. Provider APIs and credentials stay server-side.
+Single-user local application with a browser UI on a laptop/desktop. Phase 01 provides the catalog and image inspection. Phase 02 adds the local FastAPI/React review workstation. Phase 03 adds a server-side analysis-provider boundary, cached provenance, deterministic prompt compiler, immutable prompt approval, and versioned publication-profile contract. Image processing remains Phase 04 work. Provider APIs and credentials stay server-side.
 
 ## Current and planned layout
 ```
@@ -14,7 +14,7 @@ tests/
 docs/
 reports/
 scripts/
-data/{originals,thumbnails,masks,edited,exports,catalog.sqlite}  # ignored
+data/{originals,thumbnails,publication-inputs,masks,edited,exports,catalog.sqlite}  # ignored
 AGENTS.md
 .env.example
 ```
@@ -24,10 +24,10 @@ FastAPI serves JSON/media endpoints and the production frontend build from one l
 
 ## Key boundaries
 UI displays thumbnails/original comparison media, never embeds API keys, and uses backend endpoints to persist review metadata. Backend owns database and filesystem paths; later it will own model calls, queue, concurrency, logs, and export rules. Media remain on local disk; relational DB stores IDs/paths/checksums/structured records, not full-size image blobs. Photo detail responses omit precise GPS, raw EXIF, hashes, and internal paths.
-Image ingestion, AI observation, prompt compilation, editing execution and review are separate services with explicit persisted states. Original and generated versions never share an output filename.
+Image ingestion, AI observation, prompt compilation, publication-input derivation, editing execution, output normalization, and review are separate services with explicit persisted states. The editing adapter can read only the selected publication input; original and generated versions never share an output filename.
 
 ## Domain lifecycle
-Original photo -> import/checksum/metadata -> optional AI suggestions -> human review of classification/preset/instructions -> compile and inspect final prompt -> authorized job/attempt -> visual compare -> approve/reject -> approved-only export.
+Original photo -> import/checksum/metadata -> optional AI suggestions -> human review of classification/preset/publication profile/instructions -> compile and inspect final prompt -> deterministic publication input -> authorized job/raw attempt -> validated publication version -> visual compare -> approve/reject -> approved-only export.
 A batch is a saved selection/filter and job group; it does not own source identity.
 
 ## Operational considerations

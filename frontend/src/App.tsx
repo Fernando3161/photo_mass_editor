@@ -11,7 +11,7 @@ import './styles.css'
 
 type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'error' | 'recovered'
 
-const emptyOptions: Options = { subjects: [], tags: [], presets: [] }
+const emptyOptions: Options = { subjects: [], tags: [], presets: [], publication_profiles: [] }
 const defaultFilters: Filters = { query: '', state: 'ALL', subject: '', tag: '', city: '', date: '' }
 
 function formFromPhoto(photo: PhotoDetail): ReviewForm {
@@ -23,6 +23,7 @@ function formFromPhoto(photo: PhotoDetail): ReviewForm {
     content_tags: photo.tags.filter((tag) => tag.kind === 'CONTENT').map((tag) => tag.display_name).join(', '),
     condition_tags: photo.tags.filter((tag) => tag.kind === 'CONDITION').map((tag) => tag.display_name).join(', '),
     preset_id: photo.draft.preset_id || '',
+    publication_profile_id: photo.draft.publication_profile_id || 'website-standard-v1',
     ai_allowance: photo.draft.ai_allowance,
     ai_suggestion_editable: photo.draft.ai_suggestion_editable,
     user_instructions: photo.draft.user_instructions,

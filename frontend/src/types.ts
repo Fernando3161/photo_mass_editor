@@ -27,6 +27,7 @@ export interface PhotoSummary {
 
 export interface ReviewDraft {
   preset_id: string | null
+  publication_profile_id: string
   ai_allowance: number
   ai_suggestion_editable: string
   user_instructions: string
@@ -59,10 +60,26 @@ export interface Preset {
   updated_at: string
 }
 
+export interface PublicationProfile {
+  id: string
+  version: number
+  name: string
+  image_format: 'JPEG' | 'PNG'
+  file_extension: string
+  mime: string
+  max_long_edge: number
+  quality: number | null
+  color_space: string
+  preserve_aspect_ratio: number
+  allow_upscale: number
+  strip_metadata: number
+}
+
 export interface Options {
   subjects: Array<{ id: string; slug: string; display_name: string }>
   tags: Tag[]
   presets: Preset[]
+  publication_profiles: PublicationProfile[]
 }
 
 export interface ReviewForm {
@@ -73,6 +90,7 @@ export interface ReviewForm {
   content_tags: string
   condition_tags: string
   preset_id: string
+  publication_profile_id: string
   ai_allowance: number
   ai_suggestion_editable: string
   user_instructions: string
@@ -91,6 +109,7 @@ export interface SavePayload {
   content_tags: string[]
   condition_tags: string[]
   preset_id: string | null
+  publication_profile_id: string
   ai_allowance: number
   ai_suggestion_editable: string
   user_instructions: string
@@ -135,4 +154,6 @@ export interface CompiledPrompt {
   generated_at: string
   approved_at: string | null
   input_snapshot: Record<string, unknown>
+  publication_profile_id: string
+  publication_profile_snapshot: PublicationProfile
 }

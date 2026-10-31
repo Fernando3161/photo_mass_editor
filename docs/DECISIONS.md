@@ -50,5 +50,9 @@ Define an injected server-side analysis provider and ship Phase 03 with an unava
 
 Compile approved metadata, preset version, editable suggestion, owner instructions, constraints, allowance, and policy locally. Every compile or owner edit creates an immutable numbered prompt; approval is explicit and becomes stale after draft/photo change. Alternative: ask another model to assemble the prompt. Deterministic compilation is inspectable, testable, and adds no hidden cost.
 
+## ADR-015 — Publication-sized JPEG input before generative editing (2026-10-30)
+
+Create a deterministic publication input before a generative edit and never send the original photograph as the editing image. The initial immutable profile is JPEG, sRGB, maximum 1600-pixel long edge, quality 85, preserved aspect ratio, no upscaling, and stripped metadata. The Turkey trip reference uses 1600-pixel WebP outputs, but JPEG was selected here because the owner's current workstation can inspect it directly. PNG remains available for cases that require lossless or alpha output. Profile changes create new derivatives and stale prior prompt readiness. Raw provider output and the validated publication version remain separate immutable artifacts.
+
 ## Governance
 These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here. Development agents leave decision changes unstaged and uncommitted; the owner manually stages and commits them after review. Automatic commits are forbidden.
