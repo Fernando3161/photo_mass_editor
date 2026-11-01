@@ -6,7 +6,7 @@ A single-user, PC-oriented, local-first tool for cataloging, evaluating and sele
 ## Outcomes
 1. Import selected originals, retain immutable files and captured EXIF/GPS, generate thumbnails, fingerprint duplicates.
 2. Search/review via large-monitor dual image viewer, persistent horizontal filmstrip, contact sheet, keyboard navigation and filters.
-3. Allow optional primary subject plus multiple tags and observed photographic conditions; user can override AI prepopulation.
+3. Allow optional primary subject plus multiple tags and observed photographic conditions; locally generated, provenance-tracked suggestions and private GPS-to-city matching reduce repetitive entry, while the user can correct or reject every prefilled field.
 4. Maintain editable AI recommendation and distinct optional user instructions, then produce a versioned editable final prompt after reviewing the metadata/preset/policy.
 5. Create the intended publication-sized derivative first, then run deterministic edits when possible and optional masked generative edits only against that derivative when authorized; capture costs, models, masks, prompts and parameters.
 6. Keep every attempt, compare original with selected edited version, approve/reject explicitly; rerun only non-approved photos by default.
@@ -16,7 +16,7 @@ A single-user, PC-oriented, local-first tool for cataloging, evaluating and sele
 Original preservation > traceable provenance and authenticity > user review speed > correctness/reproducibility > cost control > aesthetics > throughput.
 
 ## Scope / non-goals for V1
-In scope: local single-user installation, SQLite catalog, folder import, EXIF data, editable analysis suggestions, configurable presets (eight in Phase 03), preview/generation and approvals, batch retries, reporting, exports.
+In scope: local single-user installation, SQLite catalog, folder import, EXIF data, local image-recognition and visited-city prefill, editable analysis suggestions, configurable presets (eight in Phase 03), preview/generation and approvals, batch retries, reporting, exports.
 Not in scope initially: public-facing SaaS, multi-user accounts, cloud synchronization, Adobe-hosted integration, raw nondestructive development parity with Lightroom, autonomous AI decisions, payment/customer commerce, or a complete travel website. References to Adobe assets or future commercialization remain requirements to clarify, not committed V1 architecture.
 
 ## Decisions pending evidence

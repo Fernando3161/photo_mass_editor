@@ -3,9 +3,9 @@
 - Date: 2026-10-31
 - Branch: `dev/v1-phase-04-processing`
 - Owner-approved Phase 03 baseline: `3ae1a8d` (`modified for further presets.`)
-- Commit state: all Phase 04 changes are unstaged and uncommitted for owner review
+- Commit state: Phase 04 code and trial documentation are in owner commit `46ce4e1`; this later phase-plan revision remains unstaged and uncommitted for owner review
 - Owner/reviewer: project owner; both limited live edits completed and approved
-- Recommendation: **READY FOR OWNER REVIEW; NOT YET OWNER APPROVED**
+- Owner decision: **PHASE 04 APPROVED** on 2026-11-01; the broader 20-photo walkthrough remains deferred as recorded below
 
 ## Scope and acceptance
 
@@ -24,7 +24,7 @@
 | First live OpenAI edit: 0/10 prompt-directed retouch | PASS | Owner-authorized job `c675c29b-22c7-41ca-abaa-4f59c7f2d6cd` succeeded; source, derivative, raw, and version hashes matched; the owner explicitly approved the new version after review. |
 | Second live OpenAI edit: 2/10 Budapest Opera perspective and people removal | PASS | Owner-authorized job `a2cd22d3-0d65-4a65-9047-ed808d1b6711` succeeded; source and artifact hashes matched; the owner explicitly approved the version after visual review. |
 | Remote Windows/Linux CI | NOT_RUN | Requires owner commit and push on this branch |
-| Website export | NOT_RUN | Phase 05 scope |
+| Website export | NOT_RUN | Renumbered Phase 06 scope after the owner's local-prefill decision |
 
 ## Design and implementation
 
@@ -69,12 +69,12 @@ The ignored owner catalog was backed up with SQLite's backup API to `data/phase0
 - The configured per-image estimate and run budget are application gates. They cannot stop a provider from charging a different amount for a call already submitted. The owner should check actual Platform usage after the trial.
 - Some provider outputs may change aspect ratio or add semantic content despite prompt or mask instructions; the pipeline rejects an aspect mismatch, while semantic authenticity still needs human review.
 - Replacing an already approved version requires a future explicit promotion design. Default jobs skip approved photos and never overwrite an approval.
-- Crashes between immutable file creation and SQLite commit can leave unreferenced files. Recovery never deletes them automatically; an orphan audit remains to be added in Phase 05.
+- Crashes between immutable file creation and SQLite commit can leave unreferenced files. Recovery never deletes them automatically; an orphan audit remains to be added in Phase 06.
 - The optional mask is uploaded from an external editor. A brush/mask editor inside the workstation remains deferred.
 
 ## Handoff
 
-Follow [the Phase 04 owner review](../docs/PHASE_04_REVIEW.md) from a fresh PowerShell or Linux shell. It creates ignored directories, verifies inputs, backs up an existing catalog before migration, runs local checks, imports a new batch, compares source hashes before and after, retrieves edited JPEGs, and separates an optional one-photo paid trial. Review this unstaged branch manually and commit accepted changes yourself. Do not begin Phase 05 until the owner approves Phase 04.
+Follow [the Phase 04 owner review](../docs/PHASE_04_REVIEW.md) from a fresh PowerShell or Linux shell. It creates ignored directories, verifies inputs, backs up an existing catalog before migration, runs local checks, imports a new batch, compares source hashes before and after, retrieves edited JPEGs, and separates an optional one-photo paid trial. The owner has approved Phase 04; the next phase is local catalog prefill under the revised project plan. The owner still reviews, stages, and commits this documentation revision before Phase 05 starts.
 
 ## First two-image trial guide addendum (2026-11-01)
 
@@ -115,3 +115,9 @@ Verification: repository `.venv` interpreter path checked; `npm --prefix fronten
 The owner reports that the Budapest Opera photo 15 result looks fine and is approved. Read-only inspection of the private catalog found batch `3aff9db6-2d43-4a0f-ad7b-101696857895` COMPLETED and job `a2cd22d3-0d65-4a65-9047-ed808d1b6711` SUCCEEDED without error. It used `gpt-image-2.5-sunburst`, prompt version 3 containing the frontal perspective and people-removal requests, and no uploaded mask. The separate version `b65bf39b-a0aa-4f47-b2b0-95adaaad9e85` is **APPROVED**, with one approval review event at 15:56:01 UTC. The source, publication input, raw provider result, and final version all exist with SHA-256 hashes matching the catalog; the job's input hash also matches its publication-input row. The final version is 1600×1200. This metadata check does not replace the owner's visual judgment.
 
 The second receipt records 1,452 image input tokens, 240 text input tokens, and 424 image output tokens; its `actual_cost_usd` is null. The owner observed a **$0.02** credit-balance change for this run, after a **$0.03** change for the first run: **$0.05 displayed balance change across two edits**. These are owner-reported rounded balance movements, not exact per-request invoice amounts. No paid call or image edit was made by the agent for this report update. Verification: read-only SQLite and SHA-256 inspection using the repository `.venv` interpreter. Automated suites were **NOT_RUN** because only this evidence report changed; the broader 20-photo owner walkthrough remains pending.
+
+## Owner approval and revised next phase (2026-11-01)
+
+The owner explicitly closed and approved Phase 04 after reviewing both limited live outputs. The broader 20-photo walkthrough, remote CI, and exact provider billing reconciliation remain recorded as unrun or unresolved; approval does not turn them into passing checks. The owner chose local catalog prefill and private GPS-to-visited-city suggestions as the new Phase 05, moving approved-only export and orphan cleanup to Phase 06. This planning revision updates the project plan, supporting architecture/schema/data/UI/testing contracts, decision log, README, and historical review guides' forward-looking phase references. No Phase 05 implementation, dependency installation, model download, paid API call, or image processing was performed for this revision.
+
+Documentation verification: `git diff --check` **PASS** (line-ending conversion notices only); a Python check through the repository `.venv` **PASS** for relative Markdown links, balanced fences, and Phase 05/06 heading order across 12 changed documents. The first checker version reported false stale-export matches because its pattern also matched correct sentences mentioning both phases. The second checker version failed to locate a heading because an em dash in a PowerShell pipeline was not preserved in the Python source. Replacing the broad phrase pattern and matching headings with ASCII-only regular expressions fixed both checker issues; no project document defect was involved. Python and frontend test suites were **NOT_RUN** because this revision changes only documentation and no dependency specification or setup procedure.

@@ -42,5 +42,13 @@ Follow [the Phase 03 owner review](PHASE_03_REVIEW.md). Automated tests inject a
 
 Follow [the Phase 04 owner review](PHASE_04_REVIEW.md). Automated tests must prove that the original hash remains stable, the publication input matches the exact selected profile, provider input is the derivative rather than the source, attempts and failed receipts are retained, repeated request keys do not make duplicate versions, rejected identical attempts require an override, and approval is an explicit event. Test concurrent claims and restart behavior without a network service. The owner inspects the original and every generated version visually. A limited paid trial is optional and requires separate current-run authorization and account configuration; automated tests never make paid calls. Phase 04 is not owner-approved merely because code tests pass.
 
+## Phase 05 gate
+
+Local recognition and location matching must run without an external image/AI service and without modifying source files. Tests cover model/cache provenance and checksum verification, offline cache-missing behavior, valid/invalid/missing GPS, nearest-city radius and ambiguous matches, owner override preservation, no-GPS bulk assignment with undo, accepted metadata invalidating stale prompts, and no automatic consent, edit run, version approval, or publication eligibility. `scripts/setup_env.py` must install all declared and locked Phase 05 dependencies into `.venv` on Windows and Linux; the application must automatically obtain pinned model files for first use and work offline from the verified cache thereafter. CI uses a fake recognizer and synthetic images; it must never download model weights or call a paid API. The owner reviews a varied private pilot of about 20 photos and checks suggested labels and locations before authorizing any larger batch.
+
+## Phase 06 gate
+
+Approved-only export tests cover precise-GPS removal, confirmed editorial city/country only, selected approved-version identity and dimensions, manifest validity, cost report, backup/restore, and cleanup audit. The owner inspects the real exported collection and confirms that no quality-changing resize or unapproved version entered it.
+
 ## Phase 00 gate
 Audit document inventory, reference integrity, phase naming/branch, lifecycle consistency, risk/deferral register. No runnable application, image processing, UI or AI tests should be claimed for Phase 00.

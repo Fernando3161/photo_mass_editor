@@ -2,7 +2,7 @@
 
 Local-first, human-reviewed photography catalog and controlled image-editing project.
 
-**Current status:** The owner approved Phase 03. Phase 04 editing and versioning is under review on `dev/v1-phase-04-processing`. Approved-only website export remains Phase 05.
+**Current status:** The owner approved Phase 04 editing and versioning. The next planned phase is local catalog prefill and location suggestions (Phase 05); approved-only website export follows in Phase 06. Phase 05 implementation has not started.
 
 **Commit policy:** Development agents leave all changes unstaged and uncommitted. Automatic commits are forbidden. The owner reviews, stages, and commits changes manually.
 
@@ -63,7 +63,7 @@ Phase 03 adds explicitly authorized analysis orchestration, versioned prompt ass
 
 For repeated private API runs, copy `config/openAI.example.env` to ignored `config/openAI.env` and replace the example key and planning estimate there. The `backend.review` server command loads this file automatically at startup; a process environment value overrides the file. The old root-level `openAI.env` is not loaded. Keep the real key out of Git and browser code. The key tracking ID is not needed by the app.
 
-For a fresh 20-photo import, local editing test, and optional one-photo API trial, follow the [Phase 04 owner review guide](docs/PHASE_04_REVIEW.md). Website export is planned for Phase 05.
+For a fresh 20-photo import, local editing test, and optional one-photo API trial, follow the [Phase 04 owner review guide](docs/PHASE_04_REVIEW.md). Phase 05 will add local recognition and visited-city matching. Its dependencies will be declared in `requirements.in`, pinned in `requirements.lock`, and installed by the same `scripts/setup_env.py` procedure; pinned model files will download automatically into an ignored verified cache on first use. These packages and model files are not yet part of the current environment. Website export is planned for Phase 06.
 
 ## Project contracts
 

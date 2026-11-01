@@ -2,7 +2,7 @@
 
 For a smaller first trial with exactly two separately authorized OpenAI image edits, one at 0/10 reimagining and one at 2/10, follow [the first two-image trial](FIRST_TWO_IMAGE_TRIAL.md).
 
-This procedure tests a **new** private batch of up to 20 owner photos from import through edited-image retrieval and explicit review. Export remains Phase 05. The default editing provider is unavailable; all local deterministic runs and automated tests cost $0. Real image editing requires a separate, authorized one-photo trial.
+This procedure tests a **new** private batch of up to 20 owner photos from import through edited-image retrieval and explicit review. Export follows local catalog prefill in Phase 06. The default editing provider is unavailable; all local deterministic runs and automated tests cost $0. Real image editing requires a separate, authorized one-photo trial.
 
 Run commands from the repository root. Stop any older review server before starting this phase's server. Keep source photos, catalogs, backups, masks, and edited outputs under ignored `data/`.
 

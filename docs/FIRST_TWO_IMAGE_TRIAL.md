@@ -2,7 +2,7 @@
 
 This is a small owner-run Phase 04 trial. It makes **two output images from two chosen photos, both through the OpenAI image-edit API**. Photo A requests photographic retouching with **0/10 AI reimagining**. Photo B is **photo 15, Budapest Opera**, requesting a modest frontal perspective correction and removal of visible people with **2/10 AI reimagining**. Each is a separate paid, owner-authorized run. Asking for a completely new viewpoint may invent unseen details.
 
-**What this test can prove:** the paid edit path can process a prompt-directed, tightly constrained retouch and a separately instructed perspective edit; the source photos stay unchanged; and both output versions wait for your review. It cannot prove that an AI image is authentic or that prompt-directed edits stay within specific regions. Do not publish either image merely because its job succeeds. Approved-only export is Phase 05.
+**What this test can prove:** the paid edit path can process a prompt-directed, tightly constrained retouch and a separately instructed perspective edit; the source photos stay unchanged; and both output versions wait for your review. It cannot prove that an AI image is authentic or that prompt-directed edits stay within specific regions. Do not publish either image merely because its job succeeds. Approved-only export is Phase 06.
 
 ## What 0/10 means here
 
