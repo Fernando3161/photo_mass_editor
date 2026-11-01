@@ -43,7 +43,7 @@ def backup_database(data_dir: Path, output: Path) -> Path:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Approved website export and local recovery checks")
-    parser.add_argument("--data-dir", type=Path, default=Path("data"))
+    parser.add_argument("--data-dir", type=Path, default=Path("data/catalog"))
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("preview")
     export = commands.add_parser("export")

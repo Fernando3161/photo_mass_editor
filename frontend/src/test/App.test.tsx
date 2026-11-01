@@ -32,7 +32,9 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: { preview
       { id: 'night', slug: 'night', display_name: 'night', kind: 'CONDITION' },
     ], cities: ['Budapest', 'Berlin'], countries: ['Hungary', 'Germany'], presets: [{ id: 'natural', version: 1, name: 'Natural', structured_instructions: 'Keep it natural', updated_at: 'now' }], publication_profiles: [{ id: 'website-standard-v1', version: 1, name: 'Website standard', image_format: 'JPEG', file_extension: '.jpg', mime: 'image/jpeg', max_long_edge: 1600, quality: 85, color_space: 'sRGB', preserve_aspect_ratio: 1, allow_upscale: 0, strip_metadata: 1 }] })
     if (url === '/api/export/preview') return Response.json({ target: 'website-standard-v1', approved_count: 1, items: [{ photo_id: 'one', version_id: 'version-one', width: 1200, height: 800, sha256: 'synthetic', location_included: false }] })
-    if (url === '/api/export' && init?.method === 'POST') return Response.json({ export_id: 'export-one', directory: 'exports/export-one', manifest: 'exports/export-one/manifest.json', cost_report: 'exports/export-one/cost_report.json', item_count: 1 })
+    if (url === '/api/export/history') return Response.json([{ export_id: 'export-one', created_at: '2026-11-01', item_count: 1, directory_path: 'C:\\project\\data\\exports\\export-one' }])
+    if (url === '/api/export' && init?.method === 'POST') return Response.json({ export_id: 'export-one', directory: 'exports/export-one', directory_path: 'C:\\project\\data\\exports\\export-one', manifest: 'exports/export-one/manifest.json', cost_report: 'exports/export-one/cost_report.json', item_count: 1 })
+    if (url === '/api/export/export-one/open-folder' && init?.method === 'POST') return Response.json({ opened: true })
     if (url === '/api/export/audit') return Response.json({ referenced_files: 4, missing: [], changed: [], source_issues: [], orphaned: [], invalid_manifests: [], invalid_cost_reports: [] })
     if (url.endsWith('/edits')) return Response.json({ jobs: [], versions: [] })
     if (url === '/api/photos/one/prompts/compile' && init?.method === 'POST') return Response.json({ id: 'prompt-1', photo_id: 'one', version_number: 1, parent_prompt_id: null, compiled_text: 'Preserve documentary authenticity.', user_modified: 0, approved_for_job: 0, generated_at: 'now', approved_at: null, input_snapshot: {}, publication_profile_id: 'website-standard-v1', publication_profile_snapshot: {} })
@@ -69,6 +71,7 @@ describe('review workstation', () => {
     render(<App />)
     await screen.findByText('first.jpg')
     await user.click(screen.getByRole('tab', { name: 'Export' }))
+    expect(await screen.findByRole('region', { name: 'Recent collections' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Export approved collection' })).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Preview approved collection' }))
     expect(await screen.findByText(/1 approved image/)).toBeTruthy()
@@ -78,7 +81,9 @@ describe('review workstation', () => {
     expect(exportButton.disabled).toBe(false)
     await user.click(exportButton)
     expect(await screen.findByText(/Exported 1 image/)).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: /data\\exports\\export-one/ }))
     expect(fetchMock).toHaveBeenCalledWith('/api/export', expect.objectContaining({ method: 'POST' }))
+    expect(fetchMock).toHaveBeenCalledWith('/api/export/export-one/open-folder', expect.objectContaining({ method: 'POST' }))
   })
 
   it('navigates with the keyboard and exposes an explicit empty edited state', async () => {

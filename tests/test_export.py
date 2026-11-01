@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -15,8 +16,9 @@ from backend.catalog.database import connect
 from backend.catalog.ingestion import import_photo, sha256
 from backend.review.app import create_app
 from backend.review.editing import enqueue_batch, review_version, run_job
-from backend.review.export import ExportError, audit_artifacts, create_export, preview_export
+from backend.review.export import ExportError, audit_artifacts, create_export, preview_export, recent_exports
 from backend.review.export_cli import backup_database
+from scripts.migrate_data_layout import inspect_layout, migrate_layout
 
 
 class NoNetworkEditor:
@@ -143,9 +145,17 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/export/preview").json()["approved_count"], 1)
         first = self.client.post("/api/export", json={"authorized": True})
         self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(self.client.get("/api/export/history").json()[0]["export_id"], first.json()["export_id"])
         manifest_response = self.client.get(f"/api/export/{first.json()['export_id']}/manifest")
         self.assertEqual(manifest_response.status_code, 200)
         self.assertEqual(manifest_response.json()["export_id"], first.json()["export_id"])
+        denied_open = self.client.post(f"/api/export/{first.json()['export_id']}/open-folder")
+        self.assertEqual(denied_open.status_code, 403)
+        with patch("backend.review.app.subprocess.Popen") as opener:
+            opened = self.client.post(f"/api/export/{first.json()['export_id']}/open-folder",
+                                      headers={"X-Local-Action": "open-export-folder"}, json={})
+        self.assertEqual(opened.status_code, 200, opened.text)
+        self.assertTrue(opener.called)
         backup = backup_database(self.data, self.root / "backups" / "catalog.sqlite")
         self.assertTrue(backup.is_file())
         with self.assertRaises(FileExistsError):
@@ -182,6 +192,43 @@ class ExportTests(unittest.TestCase):
                 self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
             finally:
                 db.close()
+
+    def test_canonical_copy_keeps_existing_export_and_source(self):
+        version_id = self._approved()
+        old_export = create_export(self.data)
+        target = self.root / "final" / "data"
+        plan = inspect_layout(self.data, target)
+        self.assertEqual(plan["external_originals_preserved"], 1)
+        moved = migrate_layout(self.data, target)
+        self.assertEqual(moved["approved_count"], 1)
+        self.assertTrue((target / "exports" / old_export["export_id"] / "manifest.json").is_file())
+        self.assertEqual(recent_exports(target / "catalog")[0]["export_id"], old_export["export_id"])
+        self.assertEqual(audit_artifacts(target / "catalog")["missing"], [])
+        self.assertEqual(preview_export(target / "catalog")["items"][0]["version_id"], version_id)
+        new_export = create_export(target / "catalog")
+        self.assertTrue((target / "exports" / new_export["export_id"] / "manifest.json").is_file())
+        self.assertEqual(sha256(self.source), self.source_hash)
+        self.assertTrue((self.data / old_export["manifest"]).is_file())
+
+    def test_canonical_copy_rebases_referenced_input_without_changing_bytes(self):
+        source_root = self.root / "legacy"
+        input_root = source_root / "input"
+        input_root.mkdir(parents=True)
+        source = input_root / "original.jpg"
+        shutil.copy2(self.source, source)
+        old_catalog = source_root / "catalog"
+        photo_id = import_photo(old_catalog, source)["id"]
+        target = self.root / "final" / "data"
+        migrated = migrate_layout(old_catalog, target)
+        self.assertEqual(migrated["input_originals"], 1)
+        db = connect(target / "catalog")
+        try:
+            new_path = Path(db.execute("SELECT original_path FROM photos WHERE id=?", (photo_id,)).fetchone()[0])
+        finally:
+            db.close()
+        self.assertEqual(new_path.resolve(), (target / "input" / "original.jpg").resolve())
+        self.assertEqual(sha256(new_path), self.source_hash)
+        self.assertEqual(sha256(source), self.source_hash)
 
 
 if __name__ == "__main__":

@@ -16,8 +16,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   previewExport: () => request<{ target: string; approved_count: number; items: { photo_id: string; version_id: string; width: number; height: number; sha256: string; location_included: boolean }[] }>('/api/export/preview'),
-  createExport: () => request<{ export_id: string; directory: string; manifest: string; cost_report: string; item_count: number }>('/api/export', {
+  recentExports: () => request<{ export_id: string; created_at: string; item_count: number; directory_path: string }[]>('/api/export/history'),
+  createExport: () => request<{ export_id: string; directory: string; directory_path: string; manifest: string; cost_report: string; item_count: number }>('/api/export', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ authorized: true }),
+  }),
+  openExportFolder: (exportId: string) => request<{ opened: boolean }>(`/api/export/${exportId}/open-folder`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Local-Action': 'open-export-folder' }, body: '{}',
   }),
   auditExport: () => request<{ referenced_files: number; missing: string[]; changed: string[]; source_issues: string[]; orphaned: string[]; invalid_manifests: string[]; invalid_cost_reports: string[] }>('/api/export/audit'),
   cities: () => request<VisitedCity[]>('/api/catalog/cities'),

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 import sqlite3
+import subprocess
+import sys
 from typing import Literal
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -26,7 +28,7 @@ from .editing import (
     list_jobs, preview_batch, recover_jobs, review_version, run_job, save_mask, version_media,
 )
 from .image_pipeline import ImageIntegrityError, ensure_publication_input, private_path
-from .export import ExportError, audit_artifacts, create_export, preview_export
+from .export import ExportError, audit_artifacts, create_export, export_path, preview_export, recent_exports
 from .openai_edit import configured_provider
 from .local_model import ModelManager, ModelUnavailable
 from .catalog_prefill import (
@@ -180,6 +182,10 @@ def create_app(
     def export_audit() -> dict:
         return audit_artifacts(root)
 
+    @app.get("/api/export/history")
+    def export_history() -> list[dict]:
+        return recent_exports(root)
+
     @app.get("/api/export/{export_id}/{document}")
     def export_document(export_id: str, document: Literal["manifest", "cost_report"]):
         db = connect(root)
@@ -192,10 +198,32 @@ def create_app(
             db.close()
         if row is None:
             raise HTTPException(status_code=404, detail="Export not found")
-        path = private_path(root, row["manifest_path" if document == "manifest" else "cost_report_path"])
+        path = export_path(root, row["manifest_path" if document == "manifest" else "cost_report_path"])
         if not path.is_file():
             raise HTTPException(status_code=409, detail="Export document is missing")
         return FileResponse(path, media_type="application/json", filename=f"{document}-{export_id}.json")
+
+    @app.post("/api/export/{export_id}/open-folder")
+    def open_export_folder(export_id: str, request: Request) -> dict:
+        if request.headers.get("X-Local-Action") != "open-export-folder":
+            raise HTTPException(status_code=403, detail="Use the local export folder action")
+        db = connect(root)
+        try:
+            row = db.execute("SELECT manifest_path FROM exports WHERE id=? AND status='COMPLETE'",
+                             (export_id,)).fetchone()
+        finally:
+            db.close()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Export not found")
+        folder = export_path(root, row["manifest_path"]).parent
+        if not folder.is_dir():
+            raise HTTPException(status_code=409, detail="Export folder is missing")
+        opener = "explorer.exe" if sys.platform == "win32" else "xdg-open"
+        try:
+            subprocess.Popen([opener, str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as exc:
+            raise HTTPException(status_code=503, detail="Could not open the export folder") from exc
+        return {"opened": True}
 
     @app.get("/api/photos")
     def photos() -> list[dict]:

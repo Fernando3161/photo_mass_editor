@@ -26,7 +26,7 @@ def gps_status(row) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Photo Mass Editor catalog")
-    parser.add_argument("--data-dir", type=Path, default=Path("data"))
+    parser.add_argument("--data-dir", type=Path, default=Path("data/catalog"))
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init")
     photo = commands.add_parser("import-photo")

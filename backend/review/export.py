@@ -27,6 +27,20 @@ class ExportError(ValueError):
     """An approved version or export artifact failed its publication contract."""
 
 
+def export_path(data_dir: Path, relative: str) -> Path:
+    """Resolve an export under the final data/exports layout or a legacy catalog."""
+    root = Path(data_dir).resolve()
+    parts = Path(relative).parts
+    if len(parts) < 2 or parts[0] != "exports" or any(part in (".", "..") for part in parts):
+        raise ExportError("Invalid export path")
+    export_root = (root.parent / "exports" if root.name == "catalog" and root.parent.name == "data"
+                   else root / "exports").resolve()
+    path = export_root.joinpath(*parts[1:]).resolve()
+    if export_root not in path.parents:
+        raise ExportError("Export path escapes the export directory")
+    return path
+
+
 def _json_bytes(value: dict) -> bytes:
     return (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
@@ -111,6 +125,24 @@ def preview_export(data_dir: Path) -> dict:
         db.close()
 
 
+def recent_exports(data_dir: Path, limit: int = 10) -> list[dict]:
+    root = Path(data_dir).resolve()
+    db = connect(root)
+    try:
+        rows = db.execute(
+            """SELECT e.id,e.created_at,e.manifest_path,COUNT(i.photo_id) AS item_count
+               FROM exports e LEFT JOIN export_items i ON i.export_id=e.id
+               WHERE e.status='COMPLETE' GROUP BY e.id
+               ORDER BY e.created_at DESC,e.id DESC LIMIT ?""", (limit,),
+        ).fetchall()
+        return [{"export_id": row["id"], "created_at": row["created_at"],
+                 "item_count": row["item_count"],
+                 "directory_path": str(export_path(root, row["manifest_path"]).parent)}
+                for row in rows]
+    finally:
+        db.close()
+
+
 def _cost_report(db: sqlite3.Connection, export_id: str, created_at: str) -> dict:
     report = {"export_id": export_id, "through": created_at, "currency": "USD", "operations": {}}
     for name, table, estimate, actual in (
@@ -143,7 +175,7 @@ def create_export(data_dir: Path) -> dict:
         export_id = str(uuid4())
         created_at = utc_now()
         relative_dir = f"exports/{export_id}"
-        export_root = root / "exports"
+        export_root = export_path(root, f"exports/{export_id}").parent
         export_root.mkdir(parents=True, exist_ok=True)
         staging = export_root / f".preparing-{export_id}"
         staging.mkdir()
@@ -195,7 +227,7 @@ def create_export(data_dir: Path) -> dict:
                     "items": manifest_items}
         (staging / "manifest.json").write_bytes(_json_bytes(manifest))
         (staging / "cost_report.json").write_bytes(_json_bytes(_cost_report(db, export_id, created_at)))
-        final = root / relative_dir
+        final = export_path(root, relative_dir)
         if final.exists():
             raise ExportError("Export directory collision")
         staging.rename(final)
@@ -212,6 +244,7 @@ def create_export(data_dir: Path) -> dict:
         )
         db.commit()
         return {"export_id": export_id, "directory": relative_dir,
+                "directory_path": str(final),
                 "manifest": f"{relative_dir}/manifest.json", "cost_report": f"{relative_dir}/cost_report.json",
                 "item_count": len(items)}
     except Exception:
@@ -238,15 +271,16 @@ def audit_artifacts(data_dir: Path) -> dict:
             ("export_items", "thumbnail_path", "thumbnail_sha256"),
         ):
             for row in db.execute(f"SELECT {path_col}, {hash_col} FROM {table} WHERE {path_col} IS NOT NULL"):
-                referenced[private_path(root, row[0])] = row[1]
+                resolver = export_path if table == "export_items" else private_path
+                referenced[resolver(root, row[0])] = row[1]
         for row in db.execute("SELECT managed_original_path,sha256 FROM photos WHERE managed_original_path IS NOT NULL"):
             referenced[private_path(root, row[0])] = row[1]
         invalid_manifests, invalid_cost_reports = [], []
         for row in db.execute("SELECT id,manifest_path,cost_report_path FROM exports WHERE status='COMPLETE'"):
-            referenced[private_path(root, row["manifest_path"])] = ""
-            referenced[private_path(root, row["cost_report_path"])] = ""
-            manifest_path = private_path(root, row["manifest_path"])
-            cost_path = private_path(root, row["cost_report_path"])
+            referenced[export_path(root, row["manifest_path"])] = ""
+            referenced[export_path(root, row["cost_report_path"])] = ""
+            manifest_path = export_path(root, row["manifest_path"])
+            cost_path = export_path(root, row["cost_report_path"])
             if manifest_path.is_file():
                 try:
                     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -276,7 +310,7 @@ def audit_artifacts(data_dir: Path) -> dict:
                     invalid_cost_reports.append(row["cost_report_path"])
         missing, changed = [], []
         for path, expected in referenced.items():
-            relative = path.relative_to(root).as_posix()
+            relative = path.relative_to(root.parent if root.name == "catalog" and root.parent.name == "data" else root).as_posix()
             if not path.is_file():
                 missing.append(relative)
             elif expected and sha256(path) != expected:
@@ -288,9 +322,10 @@ def audit_artifacts(data_dir: Path) -> dict:
                 source_issues.append(row[0])
         orphaned = []
         for folder in ("thumbnails", "originals", "publication-inputs", "masks", "edited", "exports"):
-            base = root / folder
+            base = export_path(root, "exports/probe").parent if folder == "exports" else root / folder
             if base.is_dir():
-                orphaned.extend(path.relative_to(root).as_posix() for path in base.rglob("*")
+                display_root = root.parent if root.name == "catalog" and root.parent.name == "data" else root
+                orphaned.extend(path.relative_to(display_root).as_posix() for path in base.rglob("*")
                                 if path.is_file() and path not in referenced)
         return {"referenced_files": len(referenced), "missing": sorted(missing),
                 "changed": sorted(changed), "source_issues": sorted(source_issues),

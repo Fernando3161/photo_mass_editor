@@ -17,11 +17,14 @@ tests/
 docs/
 reports/
 scripts/
-data/{originals,thumbnails,publication-inputs,masks,edited,models,exports,catalog.sqlite}  # ignored
+data/input/                             # selected referenced originals
+data/catalog/{catalog.sqlite,originals,thumbnails,publication-inputs,masks,edited}/
+data/exports/                           # approved website collections
+data/{backups,evidence,models}/         # private recovery, review, model cache
 AGENTS.md
 .env.example
 ```
-Do not create empty scaffolding folders merely for cosmetic compliance.
+The canonical application data directory is `data/catalog`; the backend resolves `data/exports` as its sibling. The one-time copy migration preserves old phase review folders until the owner verifies the new catalog. Fresh installations do not create phase-named data directories. Do not create empty scaffolding folders merely for cosmetic compliance.
 
 FastAPI serves JSON/media endpoints and the production frontend build from one loopback-bound process. Vite is used only for frontend development. The UI requests summaries first and fetches a selected photo's full detail/original on demand. The horizontal filmstrip windows its DOM items; the contact sheet supplies full random access.
 
