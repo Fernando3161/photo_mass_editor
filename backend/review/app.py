@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import base64
+import binascii
+import hmac
+import os
 import sqlite3
 import subprocess
 import sys
@@ -14,7 +18,7 @@ from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -135,6 +139,7 @@ def create_app(
     analysis_provider: AnalysisProvider | None = None,
     edit_provider: EditProvider | None = None,
     local_recognizer: ModelManager | None = None,
+    access_password: str = "",
 ) -> FastAPI:
     root = Path(data_dir).resolve()
     provider = analysis_provider or UnavailableAnalysisProvider()
@@ -151,6 +156,44 @@ def create_app(
     app = FastAPI(title="Photo Mass Editor", version="0.5.0", lifespan=lifespan)
     app.state.data_dir = root
     app.state.edit_executor = executor
+    allowed_hosts = {"localhost", "127.0.0.1", "[::1]"}
+    allowed_hosts.update(host.strip().lower() for host in os.environ.get("PHOTO_EDITOR_ALLOWED_HOSTS", "").split(",") if host.strip())
+
+    @app.middleware("http")
+    async def protect_local_session(request: Request, call_next):
+        if access_password:
+            host = request.headers.get("host", "").split(":", 1)[0].lower()
+            if host not in allowed_hosts:
+                return Response(status_code=400, content="Unrecognized host")
+            header = request.headers.get("authorization", "")
+            try:
+                scheme, encoded = header.split(" ", 1)
+                credentials = base64.b64decode(encoded, validate=True).decode("utf-8")
+                username, password = credentials.split(":", 1)
+                valid = scheme.lower() == "basic" and username == "owner" and hmac.compare_digest(password, access_password)
+            except (ValueError, UnicodeDecodeError, binascii.Error):
+                valid = False
+            if not valid:
+                return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Photo Mass Editor"', "Cache-Control": "no-store"})
+            if request.headers.get("sec-fetch-site", "").lower() == "cross-site":
+                return Response(status_code=403, content="Cross-site request blocked")
+            origin = request.headers.get("origin")
+            if request.method in {"POST", "PATCH", "PUT", "DELETE"}:
+                if not origin:
+                    return Response(status_code=403, content="Write origin required")
+                from urllib.parse import urlsplit
+                parsed = urlsplit(origin)
+                origin_host = (parsed.hostname or "").lower()
+                if parsed.scheme not in {"http", "https"} or origin_host != host or parsed.port != request.url.port:
+                    return Response(status_code=403, content="Cross-origin write blocked")
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -521,8 +564,13 @@ def create_app(
 
     @app.post("/api/photos/{photo_id}/masks")
     async def upload_mask(photo_id: str, request: Request) -> dict:
+        content = bytearray()
+        async for chunk in request.stream():
+            content.extend(chunk)
+            if len(content) >= 4 * 1024 * 1024:
+                raise HTTPException(status_code=413, detail="Mask must be smaller than 4 MB")
         try:
-            return save_mask(root, photo_id, await request.body())
+            return save_mask(root, photo_id, bytes(content))
         except (EditConflict, ImageIntegrityError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except OSError as exc:

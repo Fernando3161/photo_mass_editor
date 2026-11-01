@@ -60,6 +60,38 @@ class ReviewApiTests(unittest.TestCase):
         self.assertEqual(original.status_code, 200)
         self.assertEqual(sha256(self.source), self.source_hash)
 
+    def test_lan_password_protects_media_and_writes(self):
+        import base64
+        from unittest.mock import patch
+
+        with patch.dict("os.environ", {"PHOTO_EDITOR_ALLOWED_HOSTS": "192.168.1.20"}):
+            client = TestClient(create_app(self.data, access_password="test-secret"), base_url="http://192.168.1.20:8000")
+        self.assertEqual(client.get(f"/api/photos/{self.photo_id}/original").status_code, 401)
+        auth = "Basic " + base64.b64encode(b"owner:test-secret").decode()
+        self.assertEqual(client.get("/api/health", headers={"Host": "attacker.example", "Authorization": auth}).status_code, 400)
+        allowed = client.get(f"/api/photos/{self.photo_id}/original", headers={"Authorization": auth})
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(allowed.headers["cache-control"], "no-store")
+        self.assertEqual(allowed.headers["x-frame-options"], "DENY")
+        self.assertEqual(client.get(f"/api/photos/{self.photo_id}/original", headers={
+            "Authorization": auth, "Sec-Fetch-Site": "cross-site",
+        }).status_code, 403)
+        self.assertEqual(client.patch(f"/api/photos/{self.photo_id}", json=self.payload(), headers={
+            "Authorization": auth,
+        }).status_code, 403)
+        blocked = client.patch(f"/api/photos/{self.photo_id}", json=self.payload(), headers={
+            "Authorization": auth, "Origin": "http://attacker.example:8000",
+        })
+        self.assertEqual(blocked.status_code, 403)
+        saved = client.patch(f"/api/photos/{self.photo_id}", json=self.payload(), headers={
+            "Authorization": auth, "Origin": "http://192.168.1.20:8000",
+        })
+        self.assertEqual(saved.status_code, 200)
+
+    def test_oversized_mask_is_rejected_before_image_processing(self):
+        response = self.client.post(f"/api/photos/{self.photo_id}/masks", content=b"x" * (4 * 1024 * 1024))
+        self.assertEqual(response.status_code, 413)
+
     def test_metadata_tags_draft_and_review_state_persist(self):
         saved = self.client.patch(f"/api/photos/{self.photo_id}", json=self.payload())
         self.assertEqual(saved.status_code, 200, saved.text)

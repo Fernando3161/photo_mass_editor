@@ -50,5 +50,9 @@ Local recognition and location matching must run without an external image/AI se
 
 Approved-only export tests cover precise-GPS removal, confirmed editorial city/country only, selected approved-version identity and dimensions, manifest validity, cost report, backup/restore, and cleanup audit. The owner inspects the real exported collection and confirms that no quality-changing resize or unapproved version entered it.
 
+## Phase 07 gate
+
+Run the canonical environment setup and full backend/frontend checks; verify the PowerShell launcher parses and starts from the repository root, refuses unauthenticated LAN requests, and serves authorized requests. Scan the tracked release and reachable Git blobs for credentials, private paths, and unexpected media. Verify public preview dimensions and absence of EXIF/GPS, review the exact license and contact details, and record unresolved risks in the release audit. The owner reviews the final staged file list, visual examples, licensing rights, and merge. A passing scan is not proof of zero vulnerabilities.
+
 ## Phase 00 gate
 Audit document inventory, reference integrity, phase naming/branch, lifecycle consistency, risk/deferral register. No runnable application, image processing, UI or AI tests should be claimed for Phase 00.

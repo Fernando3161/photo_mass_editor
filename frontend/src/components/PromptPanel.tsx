@@ -19,7 +19,7 @@ interface Props {
 export function PromptPanel(props: Props) {
   return (
     <div className="panel-section form-grid prompt-panel">
-      <div className="span-two section-heading"><div><p className="eyebrow">Phase 3</p><h3>Analysis and final prompt</h3></div><span className="phase-chip">Opt-in</span></div>
+      <div className="span-two section-heading"><div><p className="eyebrow">Preparation</p><h3>Analysis and final prompt</h3></div><span className="phase-chip">Opt-in</span></div>
       <div className="span-two analysis-controls">
         <button type="button" className="button-secondary" onClick={props.onEstimate} disabled={props.busy}>Preview analysis cost</button>
         {props.estimate && <p role="status">{props.estimate.photo_count} photo · {props.estimate.cached_count} cached · {props.estimate.billable_count} billable · {props.estimate.estimated_cost} {props.estimate.currency} · {props.estimate.provider}/{props.estimate.model}</p>}

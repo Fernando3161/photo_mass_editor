@@ -143,7 +143,7 @@ export function EditPanel({ photo, visiblePhotoIds, selectedVersionId, onSelectV
   }
 
   return <div className="panel-section edit-panel">
-    <div className="section-heading"><div><p className="eyebrow">Phase 4</p><h3>Editing and versions</h3></div><span className="phase-chip">Owner review</span></div>
+    <div className="section-heading"><div><p className="eyebrow">Controlled editing</p><h3>Editing and versions</h3></div><span className="phase-chip">Owner review</span></div>
     <p>Editing uses the immutable JPEG publication input, never the original shown on the left. New outputs start pending.</p>
     <label><span>Operation</span><select value={engine} onChange={(event) => { setEngine(event.target.value as typeof engine); setPreview(null); setAuthorized(false); setMaskId(null) }}><option value="DETERMINISTIC">Local deterministic correction</option><option value="GENERATIVE">Generative image edit</option></select></label>
     <label><span>Selection</span><select value={scope} onChange={(event) => { setScope(event.target.value as typeof scope); setPreview(null); setAuthorized(false) }}><option value="CURRENT">Current photo</option><option value="VISIBLE">First 20 visible photos</option></select></label>

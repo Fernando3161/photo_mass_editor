@@ -176,7 +176,7 @@ export function CatalogPrefillPanel({ photo, visiblePhotoIds, beforeMutation, on
   }
 
   return <details className="panel-section catalog-prefill">
-    <summary><span>Catalog suggestions</span><small>Phase 05 · local only</small></summary>
+    <summary><span>Catalog suggestions</span><small>Local only</small></summary>
     <p>Recognition uses a local model on verified thumbnails. Scores are relative. Review every suggestion before accepting it.</p>
     <label className="consent-row"><input type="checkbox" checked={authorized} onChange={(event) => setAuthorized(event.target.checked)} /> Authorize this local recognition run</label>
     <label className="consent-row"><input type="checkbox" checked={offline} onChange={(event) => setOffline(event.target.checked)} /> Offline: use verified cached model only</label>

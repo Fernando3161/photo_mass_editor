@@ -1,8 +1,8 @@
-name: Phase 06 approved export
+name: Photo Mass Editor checks
 
 on:
   push:
-    branches: ["dev/v1-phase-06-export"]
+    branches: ["main", "dev/v1-phase-07-release-cleanup"]
   pull_request:
 
 jobs:

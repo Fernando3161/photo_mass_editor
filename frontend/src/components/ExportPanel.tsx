@@ -55,7 +55,7 @@ export function ExportPanel() {
   const olderCollections = history.filter((item) => item.export_id !== result?.export_id)
 
   return <div className="panel-section export-panel">
-    <div className="section-heading"><div><p className="eyebrow">Phase 6</p><h3>Website collection</h3></div><span className="phase-chip">Approved only</span></div>
+    <div className="section-heading"><div><p className="eyebrow">Publication</p><h3>Website collection</h3></div><span className="phase-chip">Approved only</span></div>
     <p>Export copies each approved website JPEG byte for byte. A separate small thumbnail, privacy filtered manifest, and cost report accompany the collection. Originals and existing versions stay in place.</p>
     <div className="panel-actions"><button type="button" className="button-secondary" disabled={busy} onClick={() => void loadPreview()}>Preview approved collection</button><button type="button" className="button-secondary" disabled={busy} onClick={() => void runAudit()}>Audit files</button></div>
     {preview && <div role="status"><strong>{preview.approved_count} approved image{preview.approved_count === 1 ? '' : 's'}</strong> ready for {preview.target}. {preview.items.filter((item) => item.location_included).length} have confirmed city and country.

@@ -74,6 +74,14 @@ The website profile already yields a validated publication JPEG. Export copies i
 
 The Phase 04 catalog path was a review convention, not a durable product layout. The canonical data root now uses `data/input` for selected originals, `data/catalog` for SQLite and internal artifacts, `data/exports` for approved collections, plus `data/backups`, `data/evidence`, and `data/models`. A one-time migration takes a SQLite backup, copies files with hash verification, updates only source paths in the copied database, validates the new catalog, and retains the old phase directories for recovery until the owner accepts the new layout. A fresh installation uses the phase-free paths from the beginning. Export files are routed to the sibling `data/exports` only for the canonical catalog; legacy catalogs remain readable. The UI opens recorded export directories through an explicit local action rather than exposing arbitrary filesystem paths to a browser-supplied request.
 
+## ADR-020 — Protected private-LAN launch (2026-11-01)
+
+The owner requested one-file Windows startup and access through the local IP. The supported launcher now generates a fresh password, constrains accepted Host headers, and runs the production frontend and API together. A non-loopback manual launch without an access password fails. HTTP Basic authentication is sufficient only on a trusted private LAN; traffic is unencrypted, so public internet or untrusted Wi-Fi use is unsupported. Alternative: leave the API unauthenticated on the LAN; rejected because it would expose originals, metadata, write actions, and configured paid editing to other devices. HTTPS and remote-user accounts are deferred beyond this single-user local scope.
+
+## ADR-021 — Noncommercial public-release terms (2026-11-01)
+
+The owner requested free redistribution for noncommercial purposes. The release tree adopts the standard PolyForm Noncommercial 1.0.0 software license in place of GPLv2; it permits noncommercial use, modification, and distribution. The two explicitly public README photo previews use separate CC BY-NC 4.0 terms. NOTICE.md records the author and makes clear that earlier GPLv2 grants in history are not revoked. Alternative: CC BY-NC for all files; not chosen because Creative Commons advises against applying CC licenses to software itself. Commercial permission and publication rights remain owner decisions.
+
 ## Governance
 
 These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here. Development agents leave decision changes unstaged and uncommitted; the owner manually stages and commits them after review. Automatic commits are forbidden.
