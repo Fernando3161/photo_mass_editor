@@ -175,9 +175,8 @@ export function CatalogPrefillPanel({ photo, visiblePhotoIds, beforeMutation, on
     })
   }
 
-  return <section className="panel-section catalog-prefill" aria-label="Local catalog prefill">
-    <p className="eyebrow">Phase 05 · local only</p>
-    <h3>Catalog suggestions</h3>
+  return <details className="panel-section catalog-prefill">
+    <summary><span>Catalog suggestions</span><small>Phase 05 · local only</small></summary>
     <p>Recognition uses a local model on verified thumbnails. Scores are relative. Review every suggestion before accepting it.</p>
     <label className="consent-row"><input type="checkbox" checked={authorized} onChange={(event) => setAuthorized(event.target.checked)} /> Authorize this local recognition run</label>
     <label className="consent-row"><input type="checkbox" checked={offline} onChange={(event) => setOffline(event.target.checked)} /> Offline: use verified cached model only</label>
@@ -208,5 +207,5 @@ export function CatalogPrefillPanel({ photo, visiblePhotoIds, beforeMutation, on
     {batchId && <button type="button" className="button-secondary" disabled={busy} onClick={() => void guarded(async () => { const result = await api.locationUndo(batchId); setBatchId(''); await refresh(); onPhoto(await api.getPhoto(photo.id)); setStatus(`${result.undone_count} locations undone`) })}>Undo last bulk assignment</button>}
     {status && <p role="status">{status}</p>}
     {error && <p className="error-message" role="alert">{error}</p>}
-  </section>
+  </details>
 }

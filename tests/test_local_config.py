@@ -15,15 +15,14 @@ class LocalConfigTests(unittest.TestCase):
             private = Path(directory) / "openAI.env"
             private.write_text(
                 example.read_text(encoding="utf-8")
-                .replace("YOUR_KEY_HERE", "synthetic-secret")
-                .replace("YOUR_ESTIMATE_HERE", "0.50"),
+                .replace("YOUR_KEY_HERE", "synthetic-secret"),
                 encoding="utf-8",
             )
             environment: dict[str, str] = {}
             self.assertTrue(load_local_config(private, environment))
             self.assertEqual(environment["OPENAI_API_KEY"], "synthetic-secret")
             self.assertEqual(environment["PHOTO_EDIT_MODEL"], "gpt-image-2.5-sunburst")
-            self.assertEqual(environment["PHOTO_EDIT_PLANNING_COST_USD"], "0.50")
+            self.assertEqual(environment["PHOTO_EDIT_PLANNING_COST_USD"], "0.10")
 
     def test_process_environment_overrides_file_and_missing_file_is_optional(self):
         with tempfile.TemporaryDirectory() as directory:

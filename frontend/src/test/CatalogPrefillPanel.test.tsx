@@ -32,6 +32,10 @@ describe('local catalog prefill panel', () => {
     const user = userEvent.setup()
     const onPhoto = vi.fn()
     render(<CatalogPrefillPanel photo={photo} visiblePhotoIds={['photo-1']} beforeMutation={async () => true} onPhoto={onPhoto} onCatalogRefresh={async () => {}} />)
+    const section = screen.getByText('Catalog suggestions').closest('details') as HTMLDetailsElement
+    expect(section.open).toBe(false)
+    await user.click(screen.getByText('Catalog suggestions'))
+    expect(section.open).toBe(true)
     const start = screen.getByRole('button', { name: 'Suggest current photo' }) as HTMLButtonElement
     expect(start.disabled).toBe(true)
     await user.click(screen.getByLabelText('Authorize this local recognition run'))
@@ -43,5 +47,7 @@ describe('local catalog prefill panel', () => {
     expect(onPhoto).toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Undo acceptance' }))
     await waitFor(() => expect(calls.undo).toHaveBeenCalledWith('suggestion-1'))
+    await user.click(screen.getByText('Catalog suggestions'))
+    expect(section.open).toBe(false)
   })
 })

@@ -106,6 +106,16 @@ class EditingTests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_single_photo_budget_equal_to_ten_cent_estimate_is_accepted(self):
+        self.editor.estimated_cost_usd = Decimal("0.10")
+        preview = preview_batch(self.data, [self.photo_id], "GENERATIVE", self.editor)
+        self.assertEqual(preview["estimated_cost_usd"], "0.10")
+        self.assertTrue(preview["items"][0]["eligible"])
+        jobs = enqueue_batch(self.data, [self.photo_id], "GENERATIVE", {}, self.editor,
+                             authorized=True, budget_usd=Decimal("0.10"), request_key="ten-cent-budget")
+        self.assertEqual(jobs[0]["status"], "QUEUED")
+        self.assertEqual(self.editor.paths, [])
+
     def test_rejection_retained_retry_guard_and_explicit_review(self):
         jobs = enqueue_batch(self.data, [self.photo_id], "DETERMINISTIC", {"exposure": 1.1}, self.editor,
                              authorized=True, budget_usd=None, request_key="deterministic-1")

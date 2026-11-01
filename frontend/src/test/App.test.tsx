@@ -23,7 +23,10 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: { preview
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     if (url === '/api/photos' && !init) return Response.json(catalog)
-    if (url === '/api/options') return Response.json({ subjects: [], tags: [
+    if (url === '/api/options') return Response.json({ subjects: [
+      { id: 'architecture-subject', slug: 'architecture', display_name: 'Architecture' },
+      { id: 'opera-house-subject', slug: 'opera-house', display_name: 'Opera house' },
+    ], tags: [
       { id: 'architecture', slug: 'architecture', display_name: 'architecture', kind: 'CONTENT' },
       { id: 'ambient', slug: 'ambient', display_name: 'ambient', kind: 'CONTENT' },
       { id: 'night', slug: 'night', display_name: 'night', kind: 'CONDITION' },
@@ -143,6 +146,14 @@ describe('review workstation', () => {
     mockFetch()
     const user = userEvent.setup()
     render(<App />)
+    const subject = await screen.findByLabelText('Primary subject') as HTMLInputElement
+    await user.type(subject, 'Op')
+    expect(screen.getByRole('option', { name: 'Opera house' })).toBeTruthy()
+    await user.keyboard('{Tab}')
+    expect(subject.value).toBe('Opera house')
+    await user.clear(subject)
+    await user.type(subject, 'My new subject')
+    expect(subject.value).toBe('My new subject')
     const content = await screen.findByLabelText(/^Content tags/) as HTMLInputElement
     await user.type(content, 'ambient, ar')
     expect(screen.getByRole('option', { name: 'architecture' })).toBeTruthy()
