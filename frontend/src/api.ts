@@ -1,4 +1,4 @@
-import type { AnalysisEstimate, AnalysisRun, CompiledPrompt, EditJob, EditPreview, ImageVersion, Options, PhotoDetail, PhotoSummary, Preset, SavePayload } from './types'
+import type { AnalysisEstimate, AnalysisRun, CatalogSuggestion, CompiledPrompt, EditJob, EditPreview, ImageVersion, LocationPreview, Options, PhotoDetail, PhotoSummary, Preset, SavePayload, VisitedCity } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init)
@@ -15,6 +15,30 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  cities: () => request<VisitedCity[]>('/api/catalog/cities'),
+  createCity: (payload: { city: string; country: string; latitude: number; longitude: number; radius_km: number }) => request<VisitedCity>('/api/catalog/cities', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  updateCity: (id: string, payload: { city: string; country: string; latitude: number; longitude: number; radius_km: number }) => request<VisitedCity>(`/api/catalog/cities/${id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
+  deleteCity: (id: string) => request<{ deleted: boolean }>(`/api/catalog/cities/${id}`, { method: 'DELETE' }),
+  modelStatus: () => request<{ state: string; file: string; downloaded: number; total: number; error: string; cached: boolean }>('/api/catalog/model-status'),
+  suggestions: (id: string) => request<CatalogSuggestion[]>(`/api/photos/${id}/catalog-suggestions`),
+  runPrefill: (ids: string[], offline: boolean) => request<{ results: CatalogSuggestion[] }>('/api/catalog/suggestions/run', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photo_ids: ids, authorized: true, offline }),
+  }),
+  decideSuggestion: (id: string, fields: string[], expectedRevision: number, dismiss = false) => request<{ suggestion: CatalogSuggestion; photo: PhotoDetail }>(`/api/catalog/suggestions/${id}/decide`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields, expected_revision: expectedRevision, dismiss }),
+  }),
+  undoSuggestion: (id: string) => request<{ suggestion: CatalogSuggestion; photo: PhotoDetail }>(`/api/catalog/suggestions/${id}/undo`, { method: 'POST' }),
+  locationPreview: (ids: string[], cityId: string) => request<LocationPreview>('/api/catalog/location/preview', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photo_ids: ids, city_id: cityId }),
+  }),
+  locationApply: (ids: string[], cityId: string, expectedRevisions: Record<string, number>) => request<LocationPreview>('/api/catalog/location/apply', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photo_ids: ids, city_id: cityId, authorized: true, expected_revisions: expectedRevisions }),
+  }),
+  locationUndo: (id: string) => request<{ id: string; undone_count: number }>(`/api/catalog/location/batches/${id}/undo`, { method: 'POST' }),
   listPhotos: () => request<PhotoSummary[]>('/api/photos'),
   getPhoto: (id: string) => request<PhotoDetail>(`/api/photos/${id}`),
   getOptions: () => request<Options>('/api/options'),

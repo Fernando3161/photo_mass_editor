@@ -90,6 +90,10 @@ button:disabled { cursor: not-allowed; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 10px; }
 .span-two { grid-column: 1 / -1; }
 .metadata-panel label small { color: #778179; font-size: 10px; letter-spacing: normal; line-height: 1.35; text-transform: none; }
+.autocomplete-field { position: relative; min-width: 0; }
+.autocomplete-list { position: absolute; z-index: 12; top: calc(100% + 2px); left: 0; right: 0; max-height: 200px; overflow-y: auto; margin: 0; padding: 4px; list-style: none; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-raised); box-shadow: 0 12px 28px #0008; }
+.autocomplete-list li { padding: 8px; border-radius: 4px; color: var(--ink); font-size: 12px; letter-spacing: normal; text-transform: none; cursor: pointer; }
+.autocomplete-list li:hover, .autocomplete-list li[aria-selected='true'] { background: #465047; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; }
 .phase-chip { padding: 4px 7px; border: 1px solid #515a52; border-radius: 10px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
 .field-with-action { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; }
@@ -174,3 +178,6 @@ kbd { display: inline-block; min-width: 21px; margin-right: 3px; padding: 2px 5p
 .version-list button { flex: 0 0 auto; padding: 6px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel-raised); color: var(--ink); font-size: 11px; }
 .version-list button.is-current { border-color: var(--accent); color: var(--accent); }
 .review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.catalog-prefill .prefill-card { border: 1px solid var(--border, #555); border-radius: 8px; padding: 12px; margin: 12px 0; }
+.catalog-prefill .prefill-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0; }
+.catalog-prefill .prefill-fields label { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; }

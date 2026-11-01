@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sqlite3
 from typing import Literal
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -26,6 +27,11 @@ from .editing import (
 )
 from .image_pipeline import ImageIntegrityError, ensure_publication_input, private_path
 from .openai_edit import configured_provider
+from .local_model import ModelManager, ModelUnavailable
+from .catalog_prefill import (
+    bulk_location, decide as decide_suggestion, delete_city, list_cities,
+    save_city, suggest, suggestions, undo as undo_suggestion, undo_bulk_location,
+)
 
 from .service import (
     ReviewConflict,
@@ -89,30 +95,59 @@ class ReviewDecision(BaseModel):
     reason: str | None = Field(default=None, max_length=1000)
 
 
+class CitySave(BaseModel):
+    city: str = Field(min_length=1, max_length=120)
+    country: str = Field(min_length=1, max_length=120)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    radius_km: float = Field(gt=0, le=200)
+
+
+class PrefillRun(BaseModel):
+    photo_ids: list[str] = Field(min_length=1, max_length=20)
+    authorized: bool = False
+    offline: bool = False
+
+
+class SuggestionDecision(BaseModel):
+    fields: list[str] = Field(default_factory=list)
+    expected_revision: int = Field(ge=0)
+    dismiss: bool = False
+
+
+class LocationBatch(BaseModel):
+    photo_ids: list[str] = Field(min_length=1, max_length=20)
+    city_id: str
+    authorized: bool = False
+    expected_revisions: dict[str, int] | None = None
+
+
 def create_app(
     data_dir: Path,
     frontend_dist: Path | None = None,
     analysis_provider: AnalysisProvider | None = None,
     edit_provider: EditProvider | None = None,
+    local_recognizer: ModelManager | None = None,
 ) -> FastAPI:
     root = Path(data_dir).resolve()
     provider = analysis_provider or UnavailableAnalysisProvider()
     editor = edit_provider if edit_provider is not None else configured_provider()
+    recognizer = local_recognizer or ModelManager()
     executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="photo-edit")
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         if (root / "catalog.sqlite").is_file():
             recover_jobs(root, editor, executor)
         yield
-        executor.shutdown(wait=False, cancel_futures=True)
+        executor.shutdown(wait=True, cancel_futures=True)
 
-    app = FastAPI(title="Photo Mass Editor", version="0.4.0", lifespan=lifespan)
+    app = FastAPI(title="Photo Mass Editor", version="0.5.0", lifespan=lifespan)
     app.state.data_dir = root
     app.state.edit_executor = executor
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-        allow_methods=["GET", "PATCH", "POST"],
+        allow_methods=["GET", "PATCH", "POST", "DELETE"],
         allow_headers=["Content-Type"],
     )
 
@@ -160,6 +195,107 @@ def create_app(
     @app.get("/api/options")
     def options() -> dict:
         return list_options(root)
+
+    @app.get("/api/catalog/cities")
+    def cities() -> list[dict]:
+        return list_cities(root)
+
+    @app.post("/api/catalog/cities")
+    def create_city(payload: CitySave) -> dict:
+        try:
+            return save_city(root, payload.city, payload.country, payload.latitude, payload.longitude, payload.radius_km)
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=409, detail="This city and country already exist") from exc
+
+    @app.patch("/api/catalog/cities/{city_id}")
+    def update_city(city_id: str, payload: CitySave) -> dict:
+        try:
+            return save_city(root, payload.city, payload.country, payload.latitude, payload.longitude, payload.radius_km, city_id)
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="City not found") from exc
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=409, detail="This city and country already exist") from exc
+
+    @app.delete("/api/catalog/cities/{city_id}")
+    def remove_city(city_id: str) -> dict:
+        try:
+            delete_city(root, city_id)
+            return {"deleted": True}
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="City not found") from exc
+
+    @app.get("/api/catalog/model-status")
+    def model_status() -> dict:
+        return recognizer.status()
+
+    @app.post("/api/catalog/suggestions/run")
+    def run_prefill(payload: PrefillRun) -> dict:
+        try:
+            return {"results": suggest(root, payload.photo_ids, recognizer, authorized=payload.authorized, offline=payload.offline)}
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ModelUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="Photo not found") from exc
+        except (ValueError, ReviewConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/photos/{photo_id}/catalog-suggestions")
+    def photo_suggestions(photo_id: str) -> list[dict]:
+        try:
+            return suggestions(root, photo_id)
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="Photo not found") from exc
+
+    @app.post("/api/catalog/suggestions/{suggestion_id}/decide")
+    def decide_prefill(suggestion_id: str, payload: SuggestionDecision) -> dict:
+        try:
+            return decide_suggestion(root, suggestion_id, payload.fields, payload.expected_revision, payload.dismiss)
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="Suggestion not found") from exc
+        except (ValueError, ReviewConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/catalog/suggestions/{suggestion_id}/undo")
+    def undo_prefill(suggestion_id: str) -> dict:
+        try:
+            return undo_suggestion(root, suggestion_id)
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="Suggestion not found") from exc
+        except ReviewConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/catalog/location/preview")
+    def location_preview(payload: LocationBatch) -> dict:
+        try:
+            return bulk_location(root, payload.photo_ids, payload.city_id)
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="Photo or city not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/catalog/location/apply")
+    def location_apply(payload: LocationBatch) -> dict:
+        if not payload.authorized:
+            raise HTTPException(status_code=403, detail="Authorize this bulk location assignment")
+        try:
+            return bulk_location(root, payload.photo_ids, payload.city_id, apply=True, expected_revisions=payload.expected_revisions)
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="Photo or city not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except ReviewConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/catalog/location/batches/{batch_id}/undo")
+    def undo_location(batch_id: str) -> dict:
+        try:
+            return undo_bulk_location(root, batch_id)
+        except ReviewNotFound as exc:
+            raise HTTPException(status_code=404, detail="Location batch not found") from exc
+        except ReviewConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.patch("/api/presets/{preset_id}")
     def preset(preset_id: str, payload: PresetSave) -> dict:

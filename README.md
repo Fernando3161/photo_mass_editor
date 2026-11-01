@@ -2,7 +2,7 @@
 
 Local-first, human-reviewed photography catalog and controlled image-editing project.
 
-**Current status:** The owner approved Phase 04 editing and versioning. The next planned phase is local catalog prefill and location suggestions (Phase 05); approved-only website export follows in Phase 06. Phase 05 implementation has not started.
+**Current status:** The owner approved Phase 04 editing and versioning. Phase 05 local catalog prefill and location suggestions are implemented on `dev/v1-phase-05-catalog-prefill` for owner pilot and review. Approved-only website export follows in Phase 06.
 
 **Commit policy:** Development agents leave all changes unstaged and uncommitted. Automatic commits are forbidden. The owner reviews, stages, and commits changes manually.
 
@@ -63,8 +63,8 @@ Phase 03 adds explicitly authorized analysis orchestration, versioned prompt ass
 
 For repeated private API runs, copy `config/openAI.example.env` to ignored `config/openAI.env` and replace the example key and planning estimate there. The `backend.review` server command loads this file automatically at startup; a process environment value overrides the file. The old root-level `openAI.env` is not loaded. Keep the real key out of Git and browser code. The key tracking ID is not needed by the app.
 
-For a fresh 20-photo import, local editing test, and optional one-photo API trial, follow the [Phase 04 owner review guide](docs/PHASE_04_REVIEW.md). Phase 05 will add local recognition and visited-city matching. Its dependencies will be declared in `requirements.in`, pinned in `requirements.lock`, and installed by the same `scripts/setup_env.py` procedure; pinned model files will download automatically into an ignored verified cache on first use. These packages and model files are not yet part of the current environment. Website export is planned for Phase 06.
+For a fresh 20-photo import, local editing test, and optional one-photo API trial, follow the [Phase 04 owner review guide](docs/PHASE_04_REVIEW.md). For local metadata suggestions and visited-city matching, follow the [Phase 05 owner review guide](docs/PHASE_05_REVIEW.md). Phase 05 packages are locked and installed by `scripts/setup_env.py`. Pinned model files download automatically into an ignored, checksum-verified cache on first recognition; `python scripts/setup_env.py --prefetch-model` prepares the cache for offline use. Website export is planned for Phase 06.
 
 ## Project contracts
 
-Read [agent instructions](AGENTS.md), [objectives](docs/PROJECT_OBJECTIVES.md), [phase plan](docs/PROJECT_PLAN.md), [workflow](docs/DEVELOPMENT_WORKFLOW.md), [data policy](docs/DATA_AND_ARTIFACTS.md), [logical schema](docs/DATABASE_SCHEMA.md), and the [Phase 04 report](reports/PHASE_04_TECHNICAL_REPORT.md) before extending the implementation. Phase transitions, merges, and releases remain owner review gates.
+Read [agent instructions](AGENTS.md), [objectives](docs/PROJECT_OBJECTIVES.md), [phase plan](docs/PROJECT_PLAN.md), [workflow](docs/DEVELOPMENT_WORKFLOW.md), [data policy](docs/DATA_AND_ARTIFACTS.md), [logical schema](docs/DATABASE_SCHEMA.md), and the [Phase 05 report](reports/PHASE_05_TECHNICAL_REPORT.md) before extending the implementation. Phase transitions, merges, and releases remain owner review gates.

@@ -106,10 +106,31 @@ class ReviewApiTests(unittest.TestCase):
         options = self.client.get("/api/options").json()
         self.assertIn("My natural preset", [item["name"] for item in options["presets"]])
 
+    def test_options_suggest_catalog_tags_and_places_without_coordinates(self):
+        saved = self.client.patch(f"/api/photos/{self.photo_id}", json=self.payload())
+        self.assertEqual(saved.status_code, 200, saved.text)
+        city = self.client.post("/api/catalog/cities", json={
+            "city": "Budapest", "country": "Hungary", "latitude": 47.507,
+            "longitude": 19.045, "radius_km": 25,
+        })
+        self.assertEqual(city.status_code, 200, city.text)
+        options = self.client.get("/api/options")
+        self.assertEqual(options.status_code, 200, options.text)
+        body = options.json()
+        self.assertIn("Test City", body["cities"])
+        self.assertIn("Budapest", body["cities"])
+        self.assertIn("Test Country", body["countries"])
+        self.assertIn("Hungary", body["countries"])
+        self.assertIn("facade", [tag["display_name"] for tag in body["tags"] if tag["kind"] == "CONTENT"])
+        self.assertIn("golden hour", [tag["display_name"] for tag in body["tags"] if tag["kind"] == "CONDITION"])
+        self.assertNotIn("latitude", options.text)
+        self.assertNotIn("longitude", options.text)
+        self.assertNotIn("47.507", options.text)
+
     def test_schema_has_eight_presets_and_repeat_startup_preserves_owner_edits(self):
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 6)
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 7)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM presets").fetchone()[0], 8)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM publication_profiles").fetchone()[0], 1)
         finally:

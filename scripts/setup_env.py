@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import argparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +14,9 @@ EXPECTED = (ROOT / ".venv").resolve()
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--prefetch-model", action="store_true", help="Download and verify the pinned local model for offline use")
+    args = parser.parse_args()
     if sys.version_info < (3, 11):
         raise SystemExit("Python 3.11 or newer is required")
     if Path(sys.prefix).resolve() != EXPECTED:
@@ -21,14 +25,14 @@ def main() -> None:
         interpreter = EXPECTED / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         if not interpreter.is_file():
             raise SystemExit(f"Virtual environment needs repair: {interpreter}")
-        subprocess.run([str(interpreter), str(Path(__file__).resolve())], check=True)
+        subprocess.run([str(interpreter), str(Path(__file__).resolve()), *(["--prefetch-model"] if args.prefetch_model else [])], check=True)
         return
     lock = ROOT / "requirements.lock"
     subprocess.run(
         [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "-r", str(lock)],
         check=True,
     )
-    for line in lock.read_text(encoding="utf-8").splitlines():
+    for line in lock.read_text(encoding="utf-8-sig").splitlines():
         if not line or line.startswith("#"):
             continue
         name, expected = line.split("==", 1)
@@ -54,6 +58,12 @@ def main() -> None:
                        stdout=subprocess.DEVNULL)
         print(f"Frontend dependencies verified with Node.js {node_version}")
     print(f"Environment verified: {sys.executable}")
+    if args.prefetch_model:
+        sys.path.insert(0, str(ROOT))
+        from backend.review.local_model import ModelManager
+        manager = ModelManager()
+        manager.ensure()
+        print(f"Verified local model cache: {manager.cache}")
 
 
 if __name__ == "__main__":

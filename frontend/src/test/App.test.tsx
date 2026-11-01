@@ -23,7 +23,11 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: { preview
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     if (url === '/api/photos' && !init) return Response.json(catalog)
-    if (url === '/api/options') return Response.json({ subjects: [], tags: [], presets: [{ id: 'natural', version: 1, name: 'Natural', structured_instructions: 'Keep it natural', updated_at: 'now' }], publication_profiles: [{ id: 'website-standard-v1', version: 1, name: 'Website standard', image_format: 'JPEG', file_extension: '.jpg', mime: 'image/jpeg', max_long_edge: 1600, quality: 85, color_space: 'sRGB', preserve_aspect_ratio: 1, allow_upscale: 0, strip_metadata: 1 }] })
+    if (url === '/api/options') return Response.json({ subjects: [], tags: [
+      { id: 'architecture', slug: 'architecture', display_name: 'architecture', kind: 'CONTENT' },
+      { id: 'ambient', slug: 'ambient', display_name: 'ambient', kind: 'CONTENT' },
+      { id: 'night', slug: 'night', display_name: 'night', kind: 'CONDITION' },
+    ], cities: ['Budapest', 'Berlin'], countries: ['Hungary', 'Germany'], presets: [{ id: 'natural', version: 1, name: 'Natural', structured_instructions: 'Keep it natural', updated_at: 'now' }], publication_profiles: [{ id: 'website-standard-v1', version: 1, name: 'Website standard', image_format: 'JPEG', file_extension: '.jpg', mime: 'image/jpeg', max_long_edge: 1600, quality: 85, color_space: 'sRGB', preserve_aspect_ratio: 1, allow_upscale: 0, strip_metadata: 1 }] })
     if (url.endsWith('/edits')) return Response.json({ jobs: [], versions: [] })
     if (url === '/api/photos/one/prompts/compile' && init?.method === 'POST') return Response.json({ id: 'prompt-1', photo_id: 'one', version_number: 1, parent_prompt_id: null, compiled_text: 'Preserve documentary authenticity.', user_modified: 0, approved_for_job: 0, generated_at: 'now', approved_at: null, input_snapshot: {}, publication_profile_id: 'website-standard-v1', publication_profile_snapshot: {} })
     if (url === '/api/edit/preview' && init?.method === 'POST') return Response.json(edit?.preview || { items: [{ photo_id: 'one', eligible: true, prompt_version: 1, prompt_text: 'Preserve documentary authenticity.' }], engine: 'DETERMINISTIC', model: null, estimated_cost_usd: '0', cost_note: 'Local', availability: 'ready' })
@@ -135,11 +139,61 @@ describe('review workstation', () => {
     expect(screen.getAllByText(/never the original/).length).toBeGreaterThan(0)
   })
 
+  it('completes catalog tags and locations with Tab while allowing new values', async () => {
+    mockFetch()
+    const user = userEvent.setup()
+    render(<App />)
+    const content = await screen.findByLabelText(/^Content tags/) as HTMLInputElement
+    await user.type(content, 'ambient, ar')
+    expect(screen.getByRole('option', { name: 'architecture' })).toBeTruthy()
+    await user.keyboard('{Tab}')
+    expect(content.value).toBe('ambient, architecture, ')
+    await user.type(content, 'my new tag')
+    expect(content.value).toBe('ambient, architecture, my new tag')
+    const condition = screen.getByLabelText('Condition tags') as HTMLInputElement
+    await user.type(condition, 'ni')
+    await user.keyboard('{Tab}')
+    expect(condition.value).toBe('night, ')
+    const editor = screen.getByRole('complementary', { name: 'Photo metadata editor' })
+    const city = within(editor).getByRole('combobox', { name: 'City' }) as HTMLInputElement
+    await user.type(city, 'Bud')
+    await user.keyboard('{Tab}')
+    expect(city.value).toBe('Budapest')
+    const country = within(editor).getByRole('combobox', { name: 'Country' }) as HTMLInputElement
+    await user.type(country, 'Hun')
+    await user.keyboard('{Tab}')
+    expect(country.value).toBe('Hungary')
+  })
+
+  it('uses a 0.10 USD default budget for a single eligible paid edit', async () => {
+    const fetchMock = mockFetch(false, undefined, { preview: {
+      items: [{ photo_id: 'one', eligible: true, prompt_version: 1, prompt_text: 'Retouch the photo.' }],
+      engine: 'GENERATIVE', model: 'gpt-image-2.5-sunburst', estimated_cost_usd: '0.10',
+      cost_note: 'Planning estimate only', availability: 'ready',
+    } })
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByText('first.jpg')
+    expect((screen.getByLabelText('Operation') as HTMLSelectElement).value).toBe('GENERATIVE')
+    expect((screen.getByLabelText('Run budget in USD') as HTMLInputElement).value).toBe('0.10')
+    const start = screen.getByRole('button', { name: 'Start authorized run' }) as HTMLButtonElement
+    expect(start.disabled).toBe(true)
+    await user.click(screen.getByRole('button', { name: /Preview selected run/ }))
+    await screen.findByText(/estimated 0.10 USD/)
+    expect(start.disabled).toBe(true)
+    await user.click(screen.getByLabelText('I authorize this current paid run'))
+    expect(start.disabled).toBe(false)
+    await user.click(start)
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) =>
+      String(url) === '/api/edit/batches' && JSON.parse(String(init?.body)).budget_usd === 0.10)).toBe(true))
+  })
+
   it('previews an edit and requires current-run authorization before queueing', async () => {
     const fetchMock = mockFetch()
     const user = userEvent.setup()
     render(<App />)
     await screen.findByText('first.jpg')
+    await user.selectOptions(screen.getByLabelText('Operation'), 'DETERMINISTIC')
     const start = screen.getByRole('button', { name: 'Start authorized run' }) as HTMLButtonElement
     expect(start.disabled).toBe(true)
     await user.click(screen.getByRole('button', { name: /Preview selected run/ }))
@@ -163,7 +217,8 @@ describe('review workstation', () => {
     const user = userEvent.setup()
     render(<App />)
     await screen.findByText('first.jpg')
-    await user.selectOptions(screen.getByLabelText('Operation'), 'GENERATIVE')
+    expect((screen.getByLabelText('Operation') as HTMLSelectElement).value).toBe('GENERATIVE')
+    expect((screen.getByLabelText('Run budget in USD') as HTMLInputElement).value).toBe('0.10')
     const start = screen.getByRole('button', { name: 'Start authorized run' }) as HTMLButtonElement
     expect(start.disabled).toBe(true)
     expect(screen.getByText('Preview the selected run first.')).toBeTruthy()
@@ -171,8 +226,6 @@ describe('review workstation', () => {
     await screen.findByText(/prompt v1/)
     expect(start.disabled).toBe(true)
     expect(screen.getByText('Enter a budget of at least 1.00 USD using a decimal point.')).toBeTruthy()
-    await user.type(screen.getByLabelText('Run budget in USD'), '0.10')
-    expect(start.disabled).toBe(true)
     await user.clear(screen.getByLabelText('Run budget in USD'))
     await user.type(screen.getByLabelText('Run budget in USD'), '1.00')
     expect(start.disabled).toBe(true)

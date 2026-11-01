@@ -257,7 +257,7 @@ def save_photo(data_dir: Path, photo_id: str, payload: dict[str, Any]) -> dict[s
         db.close()
 
 
-def list_options(data_dir: Path) -> dict[str, list[dict[str, Any]]]:
+def list_options(data_dir: Path) -> dict[str, Any]:
     db = connect(data_dir)
     try:
         return {
@@ -268,6 +268,18 @@ def list_options(data_dir: Path) -> dict[str, list[dict[str, Any]]]:
                 """SELECT id, version, name, image_format, file_extension, mime, max_long_edge,
                           quality, color_space, preserve_aspect_ratio, allow_upscale, strip_metadata
                    FROM publication_profiles WHERE active=1 ORDER BY name, version"""
+            )],
+            "cities": [row[0] for row in db.execute(
+                """SELECT name FROM (
+                       SELECT TRIM(city) AS name FROM photos WHERE city IS NOT NULL AND TRIM(city) <> ''
+                       UNION SELECT TRIM(city) AS name FROM visited_cities
+                   ) ORDER BY lower(name)"""
+            )],
+            "countries": [row[0] for row in db.execute(
+                """SELECT name FROM (
+                       SELECT TRIM(country) AS name FROM photos WHERE country IS NOT NULL AND TRIM(country) <> ''
+                       UNION SELECT TRIM(country) AS name FROM visited_cities
+                   ) ORDER BY lower(name)"""
             )],
         }
     finally:

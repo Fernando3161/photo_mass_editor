@@ -118,6 +118,8 @@ export interface Options {
   tags: Tag[]
   presets: Preset[]
   publication_profiles: PublicationProfile[]
+  cities: string[]
+  countries: string[]
 }
 
 export interface ReviewForm {
@@ -155,6 +157,22 @@ export interface SavePayload {
   semantic_change_consent: boolean
   analysis_run_id: string | null
   review_state: ReviewState
+}
+
+export interface VisitedCity { id: string; city: string; country: string; radius_km: number; revision: number }
+export interface CatalogSuggestion {
+  id: string; photo_id: string; status: 'PENDING' | 'ACCEPTED' | 'DISMISSED' | 'UNDONE'
+  created_at: string; model_id: string; model_revision: string; cached?: boolean
+  original_filename?: string
+  proposed: { primary_subject: string; content_tags: string[]; condition_tags: string[]; editorial_description: string; preset_id: string; city: string; country: string }
+  evidence: { top_labels: Array<{ label: string; similarity: number }>; location: { status: string; distance_km: number | null }; warning: string }
+  applied: { fields: string[] } | null
+}
+
+export interface LocationPreview {
+  id?: string; city: string; country: string
+  items: Array<{ photo_id: string; eligible: boolean; reason: string; revision: number }>
+  applied_count?: number
 }
 
 export interface AnalysisEstimate {

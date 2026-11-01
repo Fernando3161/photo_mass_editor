@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Options, PhotoDetail, Preset, ReviewForm } from '../types'
+import { AutocompleteInput } from './AutocompleteInput'
 
 interface Props {
   photo: PhotoDetail
@@ -31,11 +32,11 @@ export function MetadataPanel({ photo, form, options, onChange, onReviewNext, on
       <div className="panel-section form-grid">
         <label><span>Review status</span><select value={form.review_state} onChange={(event) => onChange('review_state', event.target.value as ReviewForm['review_state'])}><option value="UNREVIEWED">Unreviewed</option><option value="IN_PROGRESS">In progress</option><option value="REVIEWED">Reviewed</option></select></label>
         <label><span>Primary subject</span><input list="subject-options" value={form.primary_subject} onChange={(event) => onChange('primary_subject', event.target.value)} placeholder="Optional" /><datalist id="subject-options">{options.subjects.map((subject) => <option key={subject.id} value={subject.display_name} />)}</datalist></label>
-        <label><span>Content tags</span><input value={form.content_tags} onChange={(event) => onChange('content_tags', event.target.value)} placeholder="architecture, street, sculpture" /><small>Separate tags with commas</small></label>
-        <label><span>Condition tags</span><input value={form.condition_tags} onChange={(event) => onChange('condition_tags', event.target.value)} placeholder="night, backlit, haze" /></label>
+        <label><span>Content tags</span><AutocompleteInput multiple value={form.content_tags} onChange={(value) => onChange('content_tags', value)} suggestions={options.tags.filter((tag) => tag.kind === 'CONTENT').map((tag) => tag.display_name)} placeholder="architecture, street, sculpture" /><small>Separate tags with commas; Tab completes a suggestion</small></label>
+        <label><span>Condition tags</span><AutocompleteInput multiple value={form.condition_tags} onChange={(value) => onChange('condition_tags', value)} suggestions={options.tags.filter((tag) => tag.kind === 'CONDITION').map((tag) => tag.display_name)} placeholder="night, backlit, haze" /></label>
         <label className="span-two"><span>Description</span><textarea value={form.editorial_description} onChange={(event) => onChange('editorial_description', event.target.value)} rows={3} /></label>
-        <label><span>City</span><input value={form.city} onChange={(event) => onChange('city', event.target.value)} /></label>
-        <label><span>Country</span><input value={form.country} onChange={(event) => onChange('country', event.target.value)} /></label>
+        <label><span>City</span><AutocompleteInput value={form.city} onChange={(value) => onChange('city', value)} suggestions={options.cities} /></label>
+        <label><span>Country</span><AutocompleteInput value={form.country} onChange={(value) => onChange('country', value)} suggestions={options.countries} /></label>
       </div>
 
       <div className="panel-section form-grid">

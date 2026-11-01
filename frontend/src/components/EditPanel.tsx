@@ -12,12 +12,12 @@ interface Props {
 }
 
 export function EditPanel({ photo, visiblePhotoIds, selectedVersionId, onSelectVersion, onBeforeRun, onRefresh }: Props) {
-  const [engine, setEngine] = useState<'DETERMINISTIC' | 'GENERATIVE'>('DETERMINISTIC')
+  const [engine, setEngine] = useState<'DETERMINISTIC' | 'GENERATIVE'>('GENERATIVE')
   const [scope, setScope] = useState<'CURRENT' | 'VISIBLE'>('CURRENT')
   const [settings, setSettings] = useState({ exposure: 1, contrast: 1, color: 1, sharpness: 1, denoise: 0 })
   const [preview, setPreview] = useState<EditPreview | null>(null)
   const [authorized, setAuthorized] = useState(false)
-  const [budget, setBudget] = useState('')
+  const [budget, setBudget] = useState('0.10')
   const [retryOverride, setRetryOverride] = useState(false)
   const [maskId, setMaskId] = useState<string | null>(null)
   const [jobs, setJobs] = useState<EditJob[]>([])

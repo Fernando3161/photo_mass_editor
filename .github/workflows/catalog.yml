@@ -1,8 +1,8 @@
-name: Phase 04 editing and versioning
+name: Phase 05 local catalog prefill
 
 on:
   push:
-    branches: ["dev/v1-phase-04-processing"]
+    branches: ["dev/v1-phase-05-catalog-prefill"]
   pull_request:
 
 jobs:
