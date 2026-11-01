@@ -13,7 +13,7 @@ FIELDS = {"OPENAI_API_KEY", "PHOTO_EDIT_MODEL", "PHOTO_EDIT_PLANNING_COST_USD"}
 
 
 def load_local_config(path: Path = CONFIG_PATH, environ: MutableMapping[str, str] | None = None) -> bool:
-    """Load known fields as process defaults; do nothing when the private file is absent."""
+    """Load local fields, preferring the file's planning amount when present."""
     if not path.is_file():
         return False
     target = os.environ if environ is None else environ
@@ -40,13 +40,15 @@ def load_local_config(path: Path = CONFIG_PATH, environ: MutableMapping[str, str
     key = target.get("OPENAI_API_KEY") or values.get("OPENAI_API_KEY", "")
     if key == "YOUR_KEY_HERE":
         raise ValueError("config/openAI.env: replace the OPENAI_API_KEY example value")
-    planning = target.get("PHOTO_EDIT_PLANNING_COST_USD") or values.get("PHOTO_EDIT_PLANNING_COST_USD", "")
+    # The owner-edited local file is authoritative for this application budget
+    # estimate. A stale shell value must not silently replace it.
+    planning = values.get("PHOTO_EDIT_PLANNING_COST_USD") or target.get("PHOTO_EDIT_PLANNING_COST_USD", "")
     try:
         if Decimal(planning) <= 0 or not Decimal(planning).is_finite():
             raise InvalidOperation
     except InvalidOperation as exc:
         raise ValueError("config/openAI.env: PHOTO_EDIT_PLANNING_COST_USD must be a positive number") from exc
     for name, value in values.items():
-        if not target.get(name):
+        if (name == "PHOTO_EDIT_PLANNING_COST_USD" and value) or not target.get(name):
             target[name] = value
     return True

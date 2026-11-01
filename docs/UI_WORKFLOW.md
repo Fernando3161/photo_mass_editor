@@ -4,7 +4,7 @@
 Target large PC monitor. Persistent filmstrip with lazy-loaded thumbnails and conspicuous review-status markers; clicking any thumb jumps directly to that photo. Full contact sheet/grid for random-access navigation over ~200 photos. Keyboard left/right navigation, quick approve/reject, jump to next unreviewed/rejected. Search and filters (status, subject, multiple tags, city/date, batch). Never demand 50 next-clicks to reach photo 50.
 
 ## Main review canvas
-Original image left, currently selected edited version right when present; show clear EMPTY/NOT EDITED state otherwise, not fake comparison. Offer selectable attempt/version timeline, zoom/pan synchronized optional, compare slider optional. Presets/colors must not be implicit truth claims.
+Original image above the currently selected edited version in the left comparison column; show clear EMPTY/NOT EDITED state otherwise, not fake comparison. The wider right work area contains the catalog and draft, suggestions, prompt, and editing/version controls as separate tabs. Offer selectable attempt/version timeline, zoom/pan synchronized optional, compare slider optional. Presets/colors must not be implicit truth claims.
 
 ## Editing panel
 - Original filename, dimensions, capture metadata, location, current overall progress.
@@ -23,7 +23,7 @@ Distinguish imported/unanalysed, draft ready, queued/running/failed, completed p
 
 ## Phase 02 visual choices
 
-The implemented desktop default uses a persistent top filmstrip and a fixed side-by-side comparison. This keeps random navigation visible above the image area and leaves room for a clear original/edited distinction. Until editing exists, the right pane says **Not edited yet**. Left/right arrows navigate and `G` opens the contact sheet when focus is outside an editable control. Owner usability review can still revise these choices before Phase 02 approval. A draggable overlay and mask editor remain deferred to the editing phase.
+The desktop default keeps the top filmstrip visible, stacks original and edited images in the left column, and gives most horizontal space to the work area on the right. Until editing exists, the lower image pane says **Not edited yet**. The catalog and draft fields share two columns; the other controls are reached through work area tabs. The page itself fits the viewport, while a work area section can scroll when the window is too short for its contents. Left/right arrows navigate photos outside editable controls and tabs; on a focused tab, they switch work area sections. `G` opens the contact sheet when focus is outside an editable control. A draggable overlay and mask editor remain deferred.
 
 ## Phase 03 analysis and prompt flow
 

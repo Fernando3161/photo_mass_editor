@@ -123,12 +123,33 @@ describe('review workstation', () => {
     expect(await screen.findByText('second.jpg')).toBeTruthy()
   })
 
+  it('keeps draft fields and edit settings available while switching work area tabs', async () => {
+    mockFetch()
+    const user = userEvent.setup()
+    render(<App />)
+    const description = await screen.findByLabelText('Description') as HTMLTextAreaElement
+    await user.type(description, 'River at night')
+    const editing = screen.getByRole('tab', { name: 'Editing and versions' })
+    await user.click(editing)
+    expect(editing.getAttribute('aria-selected')).toBe('true')
+    expect(screen.queryByRole('textbox', { name: 'Description' })).toBeNull()
+    const budget = screen.getByRole('spinbutton', { name: 'Run budget in USD' }) as HTMLInputElement
+    await user.clear(budget)
+    await user.type(budget, '0.25')
+    fireEvent.keyDown(editing, { key: 'ArrowRight' })
+    expect(screen.getByRole('tab', { name: 'Catalog and draft' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveProperty('value', 'River at night')
+    await user.click(editing)
+    expect(screen.getByRole('spinbutton', { name: 'Run budget in USD' })).toHaveProperty('value', '0.25')
+  })
+
   it('compiles an inspectable prompt preview after the draft is saved', async () => {
     mockFetch()
     const user = userEvent.setup()
     render(<App />)
     await user.type(await screen.findByLabelText('My additional instructions'), 'Preserve texture')
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('All changes saved'), { timeout: 2500 })
+    await user.click(screen.getByRole('tab', { name: 'Analysis and prompt' }))
     await user.click(screen.getByRole('button', { name: 'Compile prompt preview' }))
     expect(await screen.findByDisplayValue('Preserve documentary authenticity.')).toBeTruthy()
     expect(screen.getByText('Version 1 · Pending approval')).toBeTruthy()
@@ -185,6 +206,7 @@ describe('review workstation', () => {
     const user = userEvent.setup()
     render(<App />)
     await screen.findByText('first.jpg')
+    await user.click(screen.getByRole('tab', { name: 'Editing and versions' }))
     expect((screen.getByLabelText('Operation') as HTMLSelectElement).value).toBe('GENERATIVE')
     expect((screen.getByLabelText('Run budget in USD') as HTMLInputElement).value).toBe('0.10')
     const start = screen.getByRole('button', { name: 'Start authorized run' }) as HTMLButtonElement
@@ -204,6 +226,7 @@ describe('review workstation', () => {
     const user = userEvent.setup()
     render(<App />)
     await screen.findByText('first.jpg')
+    await user.click(screen.getByRole('tab', { name: 'Editing and versions' }))
     await user.selectOptions(screen.getByLabelText('Operation'), 'DETERMINISTIC')
     const start = screen.getByRole('button', { name: 'Start authorized run' }) as HTMLButtonElement
     expect(start.disabled).toBe(true)
@@ -228,6 +251,7 @@ describe('review workstation', () => {
     const user = userEvent.setup()
     render(<App />)
     await screen.findByText('first.jpg')
+    await user.click(screen.getByRole('tab', { name: 'Editing and versions' }))
     expect((screen.getByLabelText('Operation') as HTMLSelectElement).value).toBe('GENERATIVE')
     expect((screen.getByLabelText('Run budget in USD') as HTMLInputElement).value).toBe('0.10')
     const start = screen.getByRole('button', { name: 'Start authorized run' }) as HTMLButtonElement

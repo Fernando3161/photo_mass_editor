@@ -24,7 +24,7 @@ class LocalConfigTests(unittest.TestCase):
             self.assertEqual(environment["PHOTO_EDIT_MODEL"], "gpt-image-2.5-sunburst")
             self.assertEqual(environment["PHOTO_EDIT_PLANNING_COST_USD"], "0.10")
 
-    def test_process_environment_overrides_file_and_missing_file_is_optional(self):
+    def test_process_credentials_override_file_and_missing_file_is_optional(self):
         with tempfile.TemporaryDirectory() as directory:
             private = Path(directory) / "openAI.env"
             self.assertFalse(load_local_config(private, {}))
@@ -32,6 +32,19 @@ class LocalConfigTests(unittest.TestCase):
             environment = {"OPENAI_API_KEY": "synthetic-process-key"}
             self.assertTrue(load_local_config(private, environment))
             self.assertEqual(environment["OPENAI_API_KEY"], "synthetic-process-key")
+
+    def test_local_planning_amount_overrides_stale_process_value(self):
+        with tempfile.TemporaryDirectory() as directory:
+            private = Path(directory) / "openAI.env"
+            private.write_text('OPENAI_API_KEY="synthetic-file-key"\nPHOTO_EDIT_PLANNING_COST_USD="0.10"\n', encoding="utf-8")
+            environment = {"PHOTO_EDIT_PLANNING_COST_USD": "1"}
+            self.assertTrue(load_local_config(private, environment))
+            self.assertEqual(environment["PHOTO_EDIT_PLANNING_COST_USD"], "0.10")
+
+            private.write_text('OPENAI_API_KEY="synthetic-file-key"\nPHOTO_EDIT_PLANNING_COST_USD=""\n', encoding="utf-8")
+            environment["PHOTO_EDIT_PLANNING_COST_USD"] = "1"
+            self.assertTrue(load_local_config(private, environment))
+            self.assertEqual(environment["PHOTO_EDIT_PLANNING_COST_USD"], "1")
 
     def test_unfilled_template_fails_without_exposing_values(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -12,9 +12,11 @@ import type { AnalysisEstimate, CompiledPrompt, Options, PhotoDetail, PhotoSumma
 import './styles.css'
 
 type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'error' | 'recovered'
+type WorkspaceTab = 'details' | 'suggestions' | 'prompt' | 'editing'
 
 const emptyOptions: Options = { subjects: [], tags: [], presets: [], publication_profiles: [], cities: [], countries: [] }
 const defaultFilters: Filters = { query: '', state: 'ALL', subject: '', tag: '', city: '', date: '' }
+const workspaceTabs = [['details', 'Catalog and draft'], ['suggestions', 'Suggestions'], ['prompt', 'Analysis and prompt'], ['editing', 'Editing and versions']] as const
 
 function formFromPhoto(photo: PhotoDetail): ReviewForm {
   return {
@@ -62,6 +64,7 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   const [error, setError] = useState('')
   const [gridOpen, setGridOpen] = useState(false)
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('details')
   const [presetEdit, setPresetEdit] = useState<Preset | null>(null)
   const [loading, setLoading] = useState(true)
   const [analysisEstimate, setAnalysisEstimate] = useState<AnalysisEstimate | null>(null)
@@ -266,8 +269,8 @@ export default function App() {
 
   useEffect(() => {
     const listener = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      const target = event.target
+      if (target instanceof Element && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.closest('.workspace-tabs'))) return
       if (event.key === 'ArrowLeft') { event.preventDefault(); void move(-1) }
       if (event.key === 'ArrowRight') { event.preventDefault(); void move(1) }
       if (event.key.toLowerCase() === 'g') setGridOpen(true)
@@ -386,7 +389,35 @@ export default function App() {
       <FilterBar filters={filters} onChange={setFilters} photos={photos} resultCount={filtered.length} onGrid={() => setGridOpen(true)} />
       <Filmstrip photos={filtered} selectedId={selectedId} onSelect={(id) => void selectPhoto(id)} />
       <main className="workspace">
-        {photo && form ? <><ReviewCanvas photo={photo} version={photo.versions.find((item) => item.id === selectedVersionId) || null} /><MetadataPanel photo={photo} form={form} options={options} onChange={change} onSaveNext={() => void move(1)} onReviewNext={() => void move(1, 'REVIEWED')} onEditPreset={setPresetEdit} promptPanel={<><CatalogPrefillPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} beforeMutation={() => saveNow()} onPhoto={acceptCatalogPhoto} onCatalogRefresh={refreshCatalog} /><PromptPanel estimate={analysisEstimate} analysisAuthorized={analysisAuthorized} busy={phase3Busy} prompt={prompt} promptText={promptText} promptHistory={photo.prompt_history || []} onEstimate={() => void estimateCurrentAnalysis()} onAuthorized={setAnalysisAuthorized} onRunAnalysis={() => void runCurrentAnalysis()} onCompile={() => void compilePrompt()} onPromptText={setPromptText} onSavePrompt={() => void savePromptVersion()} onApprovePrompt={() => void approveCurrentPrompt()} /><EditPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} selectedVersionId={selectedVersionId} onSelectVersion={setSelectedVersionId} onBeforeRun={() => saveNow()} onRefresh={refreshCurrentPhoto} /></>} /></> : <div className="center-message"><p>Select a photo to begin.</p></div>}
+        {photo && form ? <>
+          <ReviewCanvas photo={photo} version={photo.versions.find((item) => item.id === selectedVersionId) || null} />
+          <section className="work-area" aria-label="Work and editing area">
+            <nav className="workspace-tabs" role="tablist" aria-label="Work area sections" onKeyDown={(event) => {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+              event.preventDefault()
+              const index = workspaceTabs.findIndex(([key]) => key === workspaceTab)
+              const next = workspaceTabs[(index + (event.key === 'ArrowRight' ? 1 : workspaceTabs.length - 1)) % workspaceTabs.length][0]
+              setWorkspaceTab(next)
+              document.getElementById(`tab-${next}`)?.focus()
+            }}>
+              {workspaceTabs.map(([key, label]) =>
+                <button key={key} type="button" role="tab" id={`tab-${key}`} aria-controls={`pane-${key}`} aria-selected={workspaceTab === key} tabIndex={workspaceTab === key ? 0 : -1} className={workspaceTab === key ? 'is-active' : ''} onClick={() => setWorkspaceTab(key)}>{label}</button>
+              )}
+            </nav>
+            <div className="work-pane work-pane-details" role="tabpanel" id="pane-details" aria-labelledby="tab-details" hidden={workspaceTab !== 'details'}>
+              <MetadataPanel photo={photo} form={form} options={options} onChange={change} onSaveNext={() => void move(1)} onReviewNext={() => void move(1, 'REVIEWED')} onEditPreset={setPresetEdit} />
+            </div>
+            <div className="work-pane" role="tabpanel" id="pane-suggestions" aria-labelledby="tab-suggestions" hidden={workspaceTab !== 'suggestions'}>
+              <CatalogPrefillPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} beforeMutation={() => saveNow()} onPhoto={acceptCatalogPhoto} onCatalogRefresh={refreshCatalog} />
+            </div>
+            <div className="work-pane" role="tabpanel" id="pane-prompt" aria-labelledby="tab-prompt" hidden={workspaceTab !== 'prompt'}>
+              <PromptPanel estimate={analysisEstimate} analysisAuthorized={analysisAuthorized} busy={phase3Busy} prompt={prompt} promptText={promptText} promptHistory={photo.prompt_history || []} onEstimate={() => void estimateCurrentAnalysis()} onAuthorized={setAnalysisAuthorized} onRunAnalysis={() => void runCurrentAnalysis()} onCompile={() => void compilePrompt()} onPromptText={setPromptText} onSavePrompt={() => void savePromptVersion()} onApprovePrompt={() => void approveCurrentPrompt()} />
+            </div>
+            <div className="work-pane" role="tabpanel" id="pane-editing" aria-labelledby="tab-editing" hidden={workspaceTab !== 'editing'}>
+              <EditPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} selectedVersionId={selectedVersionId} onSelectVersion={setSelectedVersionId} onBeforeRun={() => saveNow()} onRefresh={refreshCurrentPhoto} />
+            </div>
+          </section>
+        </> : <div className="center-message"><p>Select a photo to begin.</p></div>}
       </main>
       <footer className="shortcut-bar"><span><kbd>←</kbd><kbd>→</kbd> Navigate</span><span><kbd>G</kbd> Contact sheet</span><span>Changes save automatically</span></footer>
       {gridOpen && <ContactSheet photos={filtered} onClose={() => setGridOpen(false)} onSelect={(id) => { void selectPhoto(id); setGridOpen(false) }} />}

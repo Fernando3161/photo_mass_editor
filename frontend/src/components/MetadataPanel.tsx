@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import type { Options, PhotoDetail, Preset, ReviewForm } from '../types'
 import { AutocompleteInput } from './AutocompleteInput'
 
@@ -10,15 +9,14 @@ interface Props {
   onReviewNext: () => void
   onSaveNext: () => void
   onEditPreset: (preset: Preset) => void
-  promptPanel?: ReactNode
 }
 
-export function MetadataPanel({ photo, form, options, onChange, onReviewNext, onSaveNext, onEditPreset, promptPanel }: Props) {
+export function MetadataPanel({ photo, form, options, onChange, onReviewNext, onSaveNext, onEditPreset }: Props) {
   const selectedPreset = options.presets.find((preset) => preset.id === form.preset_id)
   const selectedProfile = options.publication_profiles.find((profile) => profile.id === form.publication_profile_id)
   return (
     <aside className="metadata-panel" aria-label="Photo metadata editor">
-      <div className="panel-section compact">
+      <div className="panel-section compact catalog-record">
         <p className="eyebrow">Catalog record</p>
         <h2 title={photo.original_filename}>{photo.original_filename}</h2>
         <dl className="facts">
@@ -29,28 +27,26 @@ export function MetadataPanel({ photo, form, options, onChange, onReviewNext, on
         </dl>
       </div>
 
-      <div className="panel-section form-grid">
+      <div className="panel-section form-grid catalog-fields">
         <label><span>Review status</span><select value={form.review_state} onChange={(event) => onChange('review_state', event.target.value as ReviewForm['review_state'])}><option value="UNREVIEWED">Unreviewed</option><option value="IN_PROGRESS">In progress</option><option value="REVIEWED">Reviewed</option></select></label>
         <label><span>Primary subject</span><AutocompleteInput value={form.primary_subject} onChange={(value) => onChange('primary_subject', value)} suggestions={options.subjects.map((subject) => subject.display_name)} placeholder="Optional" /></label>
         <label><span>Content tags</span><AutocompleteInput multiple value={form.content_tags} onChange={(value) => onChange('content_tags', value)} suggestions={options.tags.filter((tag) => tag.kind === 'CONTENT').map((tag) => tag.display_name)} placeholder="architecture, street, sculpture" /><small>Separate tags with commas; Tab completes a suggestion</small></label>
         <label><span>Condition tags</span><AutocompleteInput multiple value={form.condition_tags} onChange={(value) => onChange('condition_tags', value)} suggestions={options.tags.filter((tag) => tag.kind === 'CONDITION').map((tag) => tag.display_name)} placeholder="night, backlit, haze" /></label>
-        <label className="span-two"><span>Description</span><textarea value={form.editorial_description} onChange={(event) => onChange('editorial_description', event.target.value)} rows={3} /></label>
+        <label className="span-two"><span>Description</span><textarea value={form.editorial_description} onChange={(event) => onChange('editorial_description', event.target.value)} rows={2} /></label>
         <label><span>City</span><AutocompleteInput value={form.city} onChange={(value) => onChange('city', value)} suggestions={options.cities} /></label>
         <label><span>Country</span><AutocompleteInput value={form.country} onChange={(value) => onChange('country', value)} suggestions={options.countries} /></label>
       </div>
 
-      <div className="panel-section form-grid">
+      <div className="panel-section form-grid draft-fields">
         <div className="span-two section-heading"><div><p className="eyebrow">Preparation</p><h3>Editing draft</h3></div><span className="phase-chip">Editable</span></div>
         <div className="span-two"><label htmlFor="publication-profile"><span>Publication profile</span></label><select id="publication-profile" value={form.publication_profile_id} onChange={(event) => onChange('publication_profile_id', event.target.value)}>{options.publication_profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name} v{profile.version}</option>)}</select>{selectedProfile && <small>{selectedProfile.image_format} · max long edge {selectedProfile.max_long_edge}px · quality {selectedProfile.quality ?? 'lossless'} · {selectedProfile.color_space} · preserve aspect ratio · {selectedProfile.allow_upscale ? 'upscaling allowed' : 'no upscaling'} · {selectedProfile.strip_metadata ? 'metadata stripped' : 'metadata retained'}. This derivative, never the original, is the future AI editing input.</small>}</div>
         <label className="span-two"><span>Draft preset</span><div className="field-with-action"><select value={form.preset_id} onChange={(event) => onChange('preset_id', event.target.value)}><option value="">No preset</option>{options.presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>{selectedPreset && <button type="button" className="text-button" onClick={() => onEditPreset(selectedPreset)}>Edit preset</button>}</div>{selectedPreset && <small>{selectedPreset.structured_instructions}</small>}</label>
         <label className="span-two range-label"><span>AI reimagining allowance: {form.ai_allowance}</span><input type="range" min="0" max="10" value={form.ai_allowance} onChange={(event) => onChange('ai_allowance', Number(event.target.value))} /><small>0 allows an authorized AI API retouch without requested scene changes; it cannot guarantee pixel fidelity. Values above 3 require explicit semantic-change consent.</small></label>
         <label className="span-two consent-row"><input type="checkbox" checked={form.semantic_change_consent} onChange={(event) => onChange('semantic_change_consent', event.target.checked)} /> I explicitly allow semantic changes for this draft</label>
-        <label className="span-two"><span>AI suggested corrections</span><textarea value={form.ai_suggestion_editable} onChange={(event) => onChange('ai_suggestion_editable', event.target.value)} rows={3} placeholder="No analysis result adopted" /></label>
-        <label className="span-two"><span>My additional instructions</span><textarea value={form.user_instructions} onChange={(event) => onChange('user_instructions', event.target.value)} rows={3} placeholder="Optional notes for a later editing run" /></label>
-        <label className="span-two"><span>Approved constraints</span><textarea value={form.approved_constraints} onChange={(event) => onChange('approved_constraints', event.target.value)} rows={3} placeholder="Example: keep the sky unchanged; preserve faces" /></label>
+        <label className="span-two"><span>AI suggested corrections</span><textarea value={form.ai_suggestion_editable} onChange={(event) => onChange('ai_suggestion_editable', event.target.value)} rows={2} placeholder="No analysis result adopted" /></label>
+        <label className="span-two"><span>My additional instructions</span><textarea value={form.user_instructions} onChange={(event) => onChange('user_instructions', event.target.value)} rows={2} placeholder="Optional notes for a later editing run" /></label>
+        <label className="span-two"><span>Approved constraints</span><textarea value={form.approved_constraints} onChange={(event) => onChange('approved_constraints', event.target.value)} rows={2} placeholder="Example: keep the sky unchanged; preserve faces" /></label>
       </div>
-
-      {promptPanel}
 
       <div className="panel-actions">
         <button type="button" className="button-secondary" onClick={onSaveNext}>Save & next</button>
