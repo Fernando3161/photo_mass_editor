@@ -1,13 +1,14 @@
-# Architecture (Phase 03 analysis and prompt assembly implemented)
+# Architecture (Phase 04 editing and versioning implemented)
 
 ## Deployment
-Single-user local application with a browser UI on a laptop/desktop. Phase 01 provides the catalog and image inspection. Phase 02 adds the local FastAPI/React review workstation. Phase 03 adds a server-side analysis-provider boundary, cached provenance, deterministic prompt compiler, immutable prompt approval, and versioned publication-profile contract. Image processing remains Phase 04 work. Provider APIs and credentials stay server-side.
+Single-user local application with a browser UI on a laptop/desktop. Phase 01 provides the catalog and image inspection. Phase 02 adds the local FastAPI/React review workstation. Phase 03 adds a server-side analysis-provider boundary, cached provenance, deterministic prompt compiler, immutable prompt approval, and versioned publication-profile contract. Phase 04 adds publication-input derivation, local corrections, an optional server-side image-edit adapter, bounded jobs, retained attempts, and explicit version review. Provider APIs and credentials stay server-side.
 
 ## Current and planned layout
 ```
 backend/catalog/                         # implemented catalog and migrations
 backend/review/                          # implemented local Phase 02 API
 backend/review/{analysis,analysis_service,prompts}.py  # Phase 03 boundaries
+backend/review/{image_pipeline,editing,openai_edit}.py # Phase 04 boundaries
 frontend/src/
 prompts/{presets,system}/
 tests/
@@ -23,7 +24,7 @@ Do not create empty scaffolding folders merely for cosmetic compliance.
 FastAPI serves JSON/media endpoints and the production frontend build from one loopback-bound process. Vite is used only for frontend development. The UI requests summaries first and fetches a selected photo's full detail/original on demand. The horizontal filmstrip windows its DOM items; the contact sheet supplies full random access.
 
 ## Key boundaries
-UI displays thumbnails/original comparison media, never embeds API keys, and uses backend endpoints to persist review metadata. Backend owns database and filesystem paths; later it will own model calls, queue, concurrency, logs, and export rules. Media remain on local disk; relational DB stores IDs/paths/checksums/structured records, not full-size image blobs. Photo detail responses omit precise GPS, raw EXIF, hashes, and internal paths.
+UI displays thumbnails, originals, and selected edited versions, never embeds API keys, and uses backend endpoints to persist review metadata. Backend owns database, private paths, derivative generation, a two-worker job queue, and optional model calls. Export remains Phase 05. Media remain on local disk; relational DB stores IDs/paths/checksums/structured records, not full-size image blobs. Photo detail responses omit precise GPS, raw EXIF, hashes, and internal paths.
 Image ingestion, AI observation, prompt compilation, publication-input derivation, editing execution, output normalization, and review are separate services with explicit persisted states. The editing adapter can read only the selected publication input; original and generated versions never share an output filename.
 
 ## Domain lifecycle

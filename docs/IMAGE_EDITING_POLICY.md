@@ -10,8 +10,8 @@ C. Broad semantic modification: invented weather, architecture, objects, facial 
 
 ## Allowance 0–10
 This is application-level permissiveness only, NOT an OpenAI API fidelity knob or measured error bound.
-- 0: deterministic transformations only.
-- 1–3: very conservative edits; no semantically new content without explicit instruction.
+- 0: no requested scene reimagining or semantic change. Local deterministic processing is preferred, but an explicitly authorized AI API edit may perform constrained photographic retouching (for example masked tonal/color changes). The numeric value cannot guarantee that the provider leaves content unchanged; every result requires human comparison.
+- 1–3: conservative, specifically instructed reimagining; no semantically new content beyond the owner's explicit instruction and consent.
 - 4–6: selectively authorized local generative changes, targeted mask/region, mandatory comparison.
 - 7–10: wider creative operations permitted only if user specifically opted in; never inferred from slider alone.
 No allowance value overrides explicit preservation constraints, original immutability or review requirements.
@@ -23,11 +23,15 @@ If fields conflict (e.g., preserve sky vs replace sky), surface conflict before 
 ## Publication input contract
 The original photograph is never the image input to a generative editing call. The initial `website-standard-v1` profile creates a JPEG in sRGB with a maximum 1600-pixel long edge, quality 85, preserved aspect ratio, no enlargement, and private metadata removed. The derivative records its own hash, the original source hash, and the immutable profile version. A changed profile requires a new derivative and a newly compiled prompt. Provider output may be retained in its returned format as a raw attempt, then deterministically normalized and validated as a separate publication version.
 
+Phase 04 implements that derivative and validates its bytes/hash before use. Local corrections are the default. A server-side generative adapter is available only when configured; its input is the derivative and an optional same-size transparent PNG mask. Provider output is retained as a raw attempt and normalized to a separate JPEG version. An edited image begins PENDING even if the provider call succeeds. An output aspect ratio inconsistent with the publication input fails validation rather than silently cropping the scene.
+
 ## Review contract
 Each attempt creates immutable version, begins PENDING. Show original + chosen version side by side, before/after slider optional; APPROVE or REJECT with optional reason. Keep rejected versions. New attempts do not displace approved result without explicit promotion; export defaults to approved versions only.
 
 ## Batch safeguards
 Default selection: without approved version, not already active, valid source. Preview counts, estimated costs, and per-image prompts before owner authorizes batch. Rejected unchanged settings not silently retried. Budget cap, cancellation, bounded concurrency, logging, resumability, error isolation and failure receipts.
+
+Phase 04 supports at most 20 selected photos and two concurrent local workers. The run budget gates the configured **estimated** provider amount before queueing; provider billing may differ and no account-level hard cap is implied. Only queued jobs can be cancelled reliably. A paid queued or interrupted job is failed on restart and requires a new authorization before a retry. A raw attempt and job receipt are retained when normalization fails. Existing approved versions are excluded from default runs; replacement/promotion of an approved version remains a future explicit operation.
 
 ## Privacy
 Client-side UI never stores API key; server sends only authorized data. Exif/GPS and person data must not be included in generative requests unless needed and authorized. Sanitized public exports omit private GPS by default.

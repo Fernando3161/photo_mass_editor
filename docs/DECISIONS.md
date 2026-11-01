@@ -54,5 +54,9 @@ Compile approved metadata, preset version, editable suggestion, owner instructio
 
 Create a deterministic publication input before a generative edit and never send the original photograph as the editing image. The initial immutable profile is JPEG, sRGB, maximum 1600-pixel long edge, quality 85, preserved aspect ratio, no upscaling, and stripped metadata. The Turkey trip reference uses 1600-pixel WebP outputs, but JPEG was selected here because the owner's current workstation can inspect it directly. PNG remains available for cases that require lossless or alpha output. Profile changes create new derivatives and stale prior prompt readiness. Raw provider output and the validated publication version remain separate immutable artifacts.
 
+## ADR-016 — Local corrections and guarded image-edit adapter (2026-10-31)
+
+Default editing to local deterministic Pillow corrections on the validated publication input. An optional server-side OpenAI Images edit adapter is disabled until an API key and per-image planning amount are configured. Every paid run additionally requires a preview, owner authorization, and a run budget. The planning amount is an application gate, not a provider spending limit or exact invoice. The adapter sends only the JPEG derivative and an optional matching mask. Interruption never silently resumes a paid call, because the prior call may already have been billed. Alternative: automatically retry image edits after restart. That alternative risks duplicate charges and uncontrolled attempts.
+
 ## Governance
 These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here. Development agents leave decision changes unstaged and uncommitted; the owner manually stages and commits them after review. Automatic commits are forbidden.

@@ -233,3 +233,5 @@ __marimo__/
 /frontend/dist/
 /frontend/*.tsbuildinfo
 /backend/.pytest_cache/
+openAI.env
+/config/openAI.env

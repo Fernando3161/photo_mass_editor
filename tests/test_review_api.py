@@ -109,7 +109,7 @@ class ReviewApiTests(unittest.TestCase):
     def test_schema_has_eight_presets_and_repeat_startup_preserves_owner_edits(self):
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 5)
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 6)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM presets").fetchone()[0], 8)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM publication_profiles").fetchone()[0], 1)
         finally:

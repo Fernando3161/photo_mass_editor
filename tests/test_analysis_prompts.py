@@ -216,10 +216,10 @@ class AnalysisPromptTests(unittest.TestCase):
         )
         self.assertEqual(invalid.status_code, 404)
 
-    def test_schema_version_five_contains_publication_artifact_tables(self):
+    def test_schema_version_six_contains_publication_artifact_tables(self):
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 5)
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 6)
             names = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             self.assertTrue({"analysis_runs", "compiled_prompts", "publication_profiles", "publication_inputs"}.issubset(names))
         finally:

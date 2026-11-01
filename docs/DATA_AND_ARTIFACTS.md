@@ -34,5 +34,11 @@ Analysis runs retain provider/model/template/config identity, source hash, raw a
 
 Migration `004_publication_profiles.sql` adds the versioned website profile, associates it with drafts and prompt snapshots, revokes readiness of prompts compiled before the profile rule existed, and reserves immutable `publication_inputs` provenance for Phase 04. Phase 03 selects and records the profile but creates no publication image or edited image.
 
+## Phase 04 implemented behavior
+
+The editing service checks the original SHA-256, creates a separate orientation-corrected JPEG publication input under `publication-inputs/`, and records its source/profile hash, encoder settings, and dimensions. It reuses only a validated immutable input. Deterministic corrections operate on that input. Generative requests receive only the validated derivative and an optional dimension-matched private PNG mask. Every attempt has a job receipt; successful output is retained separately as raw provider/local bytes under `edited/raw/` and as a normalized JPEG under `edited/versions/`. Review begins PENDING, and explicit approval/rejection writes an event. Rejected versions stay available. A duplicate rejected configuration requires a changed prompt/settings or explicit retry override.
+
+Server-side `OPENAI_API_KEY`, model, and planning amount are read from the process environment; no credential is sent to browser code. Restarted queued or interrupted paid jobs are not resumed automatically. Planning amounts gate runs but are not provider-enforced account limits or actual cost receipts. Phase 04 review data lives under ignored `data/phase04-review/`. Export remains Phase 05.
+
 ## Recovery
 Database backup and media-manifest checks should validate physical paths and hashes. Failed writes never assume successful version creation. An orphan scanner should identify missing/unreferenced media without deleting it automatically.

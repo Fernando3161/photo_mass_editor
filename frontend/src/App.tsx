@@ -5,6 +5,7 @@ import { Filmstrip } from './components/Filmstrip'
 import { FilterBar, type Filters } from './components/FilterBar'
 import { MetadataPanel } from './components/MetadataPanel'
 import { PromptPanel } from './components/PromptPanel'
+import { EditPanel } from './components/EditPanel'
 import { ReviewCanvas } from './components/ReviewCanvas'
 import type { AnalysisEstimate, CompiledPrompt, Options, PhotoDetail, PhotoSummary, Preset, ReviewForm, ReviewState, SavePayload } from './types'
 import './styles.css'
@@ -65,6 +66,7 @@ export default function App() {
   const [phase3Busy, setPhase3Busy] = useState(false)
   const [prompt, setPrompt] = useState<CompiledPrompt | null>(null)
   const [promptText, setPromptText] = useState('')
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const editGeneration = useRef(0)
   const formRef = useRef<ReviewForm | null>(null)
   const saveInFlight = useRef(false)
@@ -104,6 +106,7 @@ export default function App() {
         setSaveStatus('saved')
       }
       setPhoto(loaded)
+      setSelectedVersionId(loaded.versions.find((item) => item.review_status === 'APPROVED')?.id || loaded.versions.at(-1)?.id || null)
       setForm(nextForm)
       const latestPrompt = loaded.prompt_history?.[0] || null
       setPrompt(latestPrompt)
@@ -115,6 +118,13 @@ export default function App() {
       setError('')
     }).catch((reason: Error) => setError(reason.message))
     return () => { active = false }
+  }, [selectedId])
+
+  const refreshCurrentPhoto = useCallback(async () => {
+    if (!selectedId) return
+    const loaded = await api.getPhoto(selectedId)
+    setPhoto(loaded)
+    setSelectedVersionId(loaded.versions.at(-1)?.id || null)
   }, [selectedId])
 
   const filtered = useMemo(() => photos.filter((item) => {
@@ -353,7 +363,7 @@ export default function App() {
       <FilterBar filters={filters} onChange={setFilters} photos={photos} resultCount={filtered.length} onGrid={() => setGridOpen(true)} />
       <Filmstrip photos={filtered} selectedId={selectedId} onSelect={(id) => void selectPhoto(id)} />
       <main className="workspace">
-        {photo && form ? <><ReviewCanvas photo={photo} /><MetadataPanel photo={photo} form={form} options={options} onChange={change} onSaveNext={() => void move(1)} onReviewNext={() => void move(1, 'REVIEWED')} onEditPreset={setPresetEdit} promptPanel={<PromptPanel estimate={analysisEstimate} analysisAuthorized={analysisAuthorized} busy={phase3Busy} prompt={prompt} promptText={promptText} promptHistory={photo.prompt_history || []} onEstimate={() => void estimateCurrentAnalysis()} onAuthorized={setAnalysisAuthorized} onRunAnalysis={() => void runCurrentAnalysis()} onCompile={() => void compilePrompt()} onPromptText={setPromptText} onSavePrompt={() => void savePromptVersion()} onApprovePrompt={() => void approveCurrentPrompt()} />} /></> : <div className="center-message"><p>Select a photo to begin.</p></div>}
+        {photo && form ? <><ReviewCanvas photo={photo} version={photo.versions.find((item) => item.id === selectedVersionId) || null} /><MetadataPanel photo={photo} form={form} options={options} onChange={change} onSaveNext={() => void move(1)} onReviewNext={() => void move(1, 'REVIEWED')} onEditPreset={setPresetEdit} promptPanel={<><PromptPanel estimate={analysisEstimate} analysisAuthorized={analysisAuthorized} busy={phase3Busy} prompt={prompt} promptText={promptText} promptHistory={photo.prompt_history || []} onEstimate={() => void estimateCurrentAnalysis()} onAuthorized={setAnalysisAuthorized} onRunAnalysis={() => void runCurrentAnalysis()} onCompile={() => void compilePrompt()} onPromptText={setPromptText} onSavePrompt={() => void savePromptVersion()} onApprovePrompt={() => void approveCurrentPrompt()} /><EditPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} selectedVersionId={selectedVersionId} onSelectVersion={setSelectedVersionId} onBeforeRun={() => saveNow()} onRefresh={refreshCurrentPhoto} /></>} /></> : <div className="center-message"><p>Select a photo to begin.</p></div>}
       </main>
       <footer className="shortcut-bar"><span><kbd>←</kbd><kbd>→</kbd> Navigate</span><span><kbd>G</kbd> Contact sheet</span><span>Changes save automatically</span></footer>
       {gridOpen && <ContactSheet photos={filtered} onClose={() => setGridOpen(false)} onSelect={(id) => { void selectPhoto(id); setGridOpen(false) }} />}

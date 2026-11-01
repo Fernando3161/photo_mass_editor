@@ -30,3 +30,11 @@ The implemented desktop default uses a persistent top filmstrip and a fixed side
 Cost preview precedes analysis authorization. The authorization checkbox applies only to the current run and resets afterward. Sanitized suggestions populate editable fields without silently replacing non-empty owner values. The prompt preview shows deterministic assembly from the saved draft, reports conflicts before creating a version, and separates **Save as new version** from **Approve current prompt**. Editing the draft makes an older prompt stale; approval never starts an editing job.
 
 The editing draft shows the selected publication profile and its exact format, maximum long edge, quality, color space, aspect rule, upscale rule, and metadata rule. The compiled prompt snapshots that version. Changing the profile invalidates prompt readiness. Phase 04 will create the derivative and use it as the only generative image input; Phase 03 creates no image artifact.
+
+## Phase 04 run readiness
+
+The Start authorized run button is visibly muted and disabled until the preview is ready, at least one selected photo is eligible, the paid-run budget meets the displayed estimate, and the owner checks current-run authorization. A nearby message states the next missing requirement. Submission locks immediately while the draft save and queue request finish; an unsuccessful attempt clears preview and authorization so the owner inspects the receipt and deliberately previews again before retrying.
+
+## Phase 04 editing and version review
+
+The editing panel offers local deterministic corrections by default and a separate paid generative choice only when the server is configured. The owner previews per-photo eligibility and prompt text, sets a planning budget for a paid run, and explicitly authorizes each run. A batch can target the current photo or the first 20 visible photos. A new immutable version appears beside the original with its dimensions and PENDING status. The version list allows selection and downloading; the owner explicitly approves or rejects a pending version. A mask is an optional uploaded transparent PNG tied to one publication input. Masking cannot guarantee unchanged protected pixels. Approved versions are excluded from default new runs. Website export is Phase 05.

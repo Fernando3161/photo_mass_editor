@@ -50,6 +50,8 @@ input::placeholder, textarea::placeholder { color: #647067; }
 .button-secondary, .button-primary { min-height: 36px; border-radius: 7px; padding: 8px 14px; font-weight: 600; }
 .button-secondary { border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
 .button-primary { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); }
+.button-primary:disabled { border-color: var(--line); background: var(--panel-raised); color: var(--muted); }
+button:disabled { cursor: not-allowed; }
 
 .filmstrip { overflow-x: auto; overflow-y: hidden; border-bottom: 1px solid var(--line); background: #101311; scrollbar-color: #465047 transparent; }
 .filmstrip-track { position: relative; height: 110px; min-width: 100%; }
@@ -155,3 +157,20 @@ kbd { display: inline-block; min-width: 21px; margin-right: 3px; padding: 2px 5p
 .prompt-panel details {
   color: var(--text-muted);
 }
+
+.edit-panel { display: grid; gap: 12px; }
+.edit-panel p, .edit-panel small { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.edit-panel .run-readiness { color: var(--muted); }
+.edit-panel h4 { margin: 3px 0; }
+.edit-panel a { color: var(--accent); font-size: 12px; }
+.edit-settings { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.edit-settings label { min-width: 0; }
+.edit-panel details { border: 1px solid var(--line); border-radius: 6px; padding: 8px; font-size: 12px; }
+.edit-panel summary { cursor: pointer; }
+.edit-panel ol { padding-left: 22px; overflow-wrap: anywhere; }
+.edit-preview pre { max-height: 180px; overflow: auto; white-space: pre-wrap; font-size: 11px; }
+.version-review { display: grid; gap: 10px; }
+.version-list { display: flex; gap: 6px; overflow-x: auto; }
+.version-list button { flex: 0 0 auto; padding: 6px 9px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel-raised); color: var(--ink); font-size: 11px; }
+.version-list button.is-current { border-color: var(--accent); color: var(--accent); }
+.review-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

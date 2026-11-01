@@ -1,8 +1,8 @@
-name: Phase 03 analysis and prompts
+name: Phase 04 editing and versioning
 
 on:
   push:
-    branches: ["dev/v1-phase-03-prompts"]
+    branches: ["dev/v1-phase-04-processing"]
   pull_request:
 
 jobs:

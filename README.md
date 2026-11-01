@@ -2,7 +2,7 @@
 
 Local-first, human-reviewed photography catalog and controlled image-editing project.
 
-**Current status:** Phases 00–02 were reviewed by the owner. Phase 03 analysis and prompt assembly changes are on `dev/v1-phase-03-prompts`, unstaged and uncommitted for owner review. Editing and export have not begun.
+**Current status:** The owner approved Phase 03. Phase 04 editing and versioning is under review on `dev/v1-phase-04-processing`. Approved-only website export remains Phase 05.
 
 **Commit policy:** Development agents leave all changes unstaged and uncommitted. Automatic commits are forbidden. The owner reviews, stages, and commits changes manually.
 
@@ -57,12 +57,14 @@ npm --prefix frontend run build
 .venv/bin/python -m backend.review --data-dir data/phase02-review/catalog --host 127.0.0.1 --port 8000
 ```
 
-Open <http://127.0.0.1:8000>. The workstation provides a top virtualized filmstrip, contact sheet, original/empty-edited comparison, filters, keyboard navigation, metadata/tags, editable draft presets, visible autosave status, and local failed-save recovery. It can orchestrate analysis only through a configured server-side provider and explicit current-run authorization; the default provider is unavailable. It does not edit, upload, or publish images. Precise GPS and internal filesystem paths are not returned in photo details.
+Open <http://127.0.0.1:8000>. The workstation provides a top virtualized filmstrip, contact sheet, original/edited comparison, filters, keyboard navigation, metadata/tags, editable draft presets, visible autosave status, and local failed-save recovery. It can orchestrate analysis only through a configured server-side provider and explicit current-run authorization; the default analysis provider is unavailable. Precise GPS and internal filesystem paths are not returned in photo details.
 
-Phase 03 adds explicitly authorized analysis orchestration, versioned prompt assembly, eight editable draft presets, and a versioned publication profile. No production provider is configured by default, so analysis fails closed without a network call until the owner selects and configures an adapter. Editable suggestions, owner instructions, constraints, deterministic conflict checks, prompt versions, and prompt approval work locally. The original-resolution image displayed in the reviewer is for inspection. The initial website profile is JPEG/sRGB, maximum 1600-pixel long edge, quality 85, preserved aspect ratio, no upscaling, and stripped metadata. Phase 04 will create that derivative first and use it as the only generative editing input; the original is never sent for generative editing. Prompt approval does not run an edit.
+Phase 03 adds explicitly authorized analysis orchestration, versioned prompt assembly, eight editable draft presets, and a versioned publication profile. Phase 04 creates immutable publication inputs and separate raw/normalized edit attempts, queues local corrections or explicitly authorized generative jobs, and records approval/rejection. The original-resolution image displayed in the reviewer is for inspection. The initial website profile is JPEG/sRGB, maximum 1600-pixel long edge, quality 85, preserved aspect ratio, no upscaling, and stripped metadata. The generative adapter receives only that validated derivative. Generative editing is disabled unless an API key and a per-image planning amount are configured on the server; prompt approval alone never starts an edit.
 
-For review procedures, follow the [Phase 02 owner review guide](docs/PHASE_02_REVIEW.md) and [Phase 03 owner review guide](docs/PHASE_03_REVIEW.md).
+For repeated private API runs, copy `config/openAI.example.env` to ignored `config/openAI.env` and replace the example key and planning estimate there. The `backend.review` server command loads this file automatically at startup; a process environment value overrides the file. The old root-level `openAI.env` is not loaded. Keep the real key out of Git and browser code. The key tracking ID is not needed by the app.
+
+For a fresh 20-photo import, local editing test, and optional one-photo API trial, follow the [Phase 04 owner review guide](docs/PHASE_04_REVIEW.md). Website export is planned for Phase 05.
 
 ## Project contracts
 
-Read [agent instructions](AGENTS.md), [objectives](docs/PROJECT_OBJECTIVES.md), [phase plan](docs/PROJECT_PLAN.md), [workflow](docs/DEVELOPMENT_WORKFLOW.md), [data policy](docs/DATA_AND_ARTIFACTS.md), [logical schema](docs/DATABASE_SCHEMA.md), and the [Phase 03 report](reports/PHASE_03_TECHNICAL_REPORT.md) before extending the implementation. Phase transitions, merges, and releases remain owner review gates.
+Read [agent instructions](AGENTS.md), [objectives](docs/PROJECT_OBJECTIVES.md), [phase plan](docs/PROJECT_PLAN.md), [workflow](docs/DEVELOPMENT_WORKFLOW.md), [data policy](docs/DATA_AND_ARTIFACTS.md), [logical schema](docs/DATABASE_SCHEMA.md), and the [Phase 04 report](reports/PHASE_04_TECHNICAL_REPORT.md) before extending the implementation. Phase transitions, merges, and releases remain owner review gates.

@@ -81,11 +81,13 @@ def _photo(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
         "saved_at": None,
     }
     versions = db.execute(
-        """SELECT id, version_number, review_status, created_at
+        """SELECT id, version_number, review_status, created_at, width, height,
+                  reviewed_at, rejection_reason
            FROM image_versions WHERE photo_id = ? ORDER BY version_number""",
         (photo_id,),
     ).fetchall()
-    item["versions"] = [dict(version) for version in versions]
+    item["versions"] = [dict(version) | {"image_url": f"/api/photos/{photo_id}/versions/{version['id']}/image"}
+                        for version in versions]
     from .prompts import prompt_history
     item["prompt_history"] = prompt_history(db, photo_id)
     return item

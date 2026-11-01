@@ -18,13 +18,20 @@ const detail = (summary: PhotoSummary): PhotoDetail => ({
   prompt_history: [],
 })
 
-function mockFetch(saveFails = false, saveGate?: Promise<void>) {
+function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: { preview?: Record<string, unknown>; batchGate?: Promise<void> }) {
   let catalog = structuredClone(summaries)
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     if (url === '/api/photos' && !init) return Response.json(catalog)
     if (url === '/api/options') return Response.json({ subjects: [], tags: [], presets: [{ id: 'natural', version: 1, name: 'Natural', structured_instructions: 'Keep it natural', updated_at: 'now' }], publication_profiles: [{ id: 'website-standard-v1', version: 1, name: 'Website standard', image_format: 'JPEG', file_extension: '.jpg', mime: 'image/jpeg', max_long_edge: 1600, quality: 85, color_space: 'sRGB', preserve_aspect_ratio: 1, allow_upscale: 0, strip_metadata: 1 }] })
+    if (url.endsWith('/edits')) return Response.json({ jobs: [], versions: [] })
     if (url === '/api/photos/one/prompts/compile' && init?.method === 'POST') return Response.json({ id: 'prompt-1', photo_id: 'one', version_number: 1, parent_prompt_id: null, compiled_text: 'Preserve documentary authenticity.', user_modified: 0, approved_for_job: 0, generated_at: 'now', approved_at: null, input_snapshot: {}, publication_profile_id: 'website-standard-v1', publication_profile_snapshot: {} })
+    if (url === '/api/edit/preview' && init?.method === 'POST') return Response.json(edit?.preview || { items: [{ photo_id: 'one', eligible: true, prompt_version: 1, prompt_text: 'Preserve documentary authenticity.' }], engine: 'DETERMINISTIC', model: null, estimated_cost_usd: '0', cost_note: 'Local', availability: 'ready' })
+    if (url === '/api/edit/batches' && init?.method === 'POST') {
+      if (edit?.batchGate) await edit.batchGate
+      return Response.json({ jobs: [{ id: 'job-one', batch_id: 'batch-one', photo_id: 'one', compiled_prompt_id: 'prompt-one', engine: 'DETERMINISTIC', model: null, status: 'QUEUED', error: null, image_version_id: null, estimated_cost_usd: 0, actual_cost_usd: 0, created_at: 'now', started_at: null, completed_at: null }] })
+    }
+    if (url === '/api/edit/batches/batch-one') return Response.json({ jobs: [{ id: 'job-one', batch_id: 'batch-one', photo_id: 'one', compiled_prompt_id: 'prompt-one', engine: 'DETERMINISTIC', model: null, status: 'SUCCEEDED', error: null, image_version_id: 'version-one', estimated_cost_usd: 0, actual_cost_usd: 0, created_at: 'now', started_at: 'now', completed_at: 'now' }] })
     if (url.startsWith('/api/photos/') && init?.method === 'PATCH') {
       if (saveGate) await saveGate
       if (saveFails) return Response.json({ detail: 'Database unavailable' }, { status: 500 })
@@ -125,6 +132,59 @@ describe('review workstation', () => {
     render(<App />)
     expect((await screen.findByLabelText('Publication profile') as HTMLSelectElement).value).toBe('website-standard-v1')
     expect(screen.getByText(/JPEG · max long edge 1600px · quality 85/)).toBeTruthy()
-    expect(screen.getByText(/never the original/)).toBeTruthy()
+    expect(screen.getAllByText(/never the original/).length).toBeGreaterThan(0)
+  })
+
+  it('previews an edit and requires current-run authorization before queueing', async () => {
+    const fetchMock = mockFetch()
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByText('first.jpg')
+    const start = screen.getByRole('button', { name: 'Start authorized run' }) as HTMLButtonElement
+    expect(start.disabled).toBe(true)
+    await user.click(screen.getByRole('button', { name: /Preview selected run/ }))
+    expect(await screen.findByText(/prompt v1/)).toBeTruthy()
+    expect(start.disabled).toBe(true)
+    await user.click(screen.getByLabelText('I authorize this current local run'))
+    expect(start.disabled).toBe(false)
+    await user.click(start)
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) =>
+      String(url) === '/api/edit/batches' && JSON.parse(String(init?.body)).authorized === true)).toBe(true))
+  })
+
+  it('explains missing paid-run requirements and accepts only one submission while pending', async () => {
+    let releaseBatch!: () => void
+    const batchGate = new Promise<void>((resolve) => { releaseBatch = resolve })
+    const fetchMock = mockFetch(false, undefined, { batchGate, preview: {
+      items: [{ photo_id: 'one', eligible: true, prompt_version: 1, prompt_text: 'Remove visible people.' }],
+      engine: 'GENERATIVE', model: 'gpt-image-2.5-sunburst', estimated_cost_usd: '1.00',
+      cost_note: 'Planning estimate only', availability: 'ready',
+    } })
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByText('first.jpg')
+    await user.selectOptions(screen.getByLabelText('Operation'), 'GENERATIVE')
+    const start = screen.getByRole('button', { name: 'Start authorized run' }) as HTMLButtonElement
+    expect(start.disabled).toBe(true)
+    expect(screen.getByText('Preview the selected run first.')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: /Preview selected run/ }))
+    await screen.findByText(/prompt v1/)
+    expect(start.disabled).toBe(true)
+    expect(screen.getByText('Enter a budget of at least 1.00 USD using a decimal point.')).toBeTruthy()
+    await user.type(screen.getByLabelText('Run budget in USD'), '0.10')
+    expect(start.disabled).toBe(true)
+    await user.clear(screen.getByLabelText('Run budget in USD'))
+    await user.type(screen.getByLabelText('Run budget in USD'), '1.00')
+    expect(start.disabled).toBe(true)
+    expect(screen.getByText('Check the authorization box for this run.')).toBeTruthy()
+    await user.click(screen.getByLabelText('I authorize this current paid run'))
+    expect(start.disabled).toBe(false)
+    await user.click(start)
+    expect(start.disabled).toBe(true)
+    await user.click(start)
+    expect(fetchMock.mock.calls.filter(([url]) => String(url) === '/api/edit/batches')).toHaveLength(1)
+    releaseBatch()
+    await waitFor(() => expect(screen.getByText(/1 job queued/)).toBeTruthy())
+    expect(start.disabled).toBe(true)
   })
 })

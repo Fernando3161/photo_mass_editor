@@ -48,8 +48,46 @@ export interface PhotoDetail extends PhotoSummary {
   gps_present: boolean
   source_missing: number
   draft: ReviewDraft
-  versions: Array<{ id: string; version_number: number; review_status: string; created_at: string }>
+  versions: ImageVersion[]
   prompt_history: CompiledPrompt[]
+}
+
+export interface ImageVersion {
+  id: string
+  version_number: number
+  review_status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  created_at: string
+  width: number
+  height: number
+  reviewed_at: string | null
+  rejection_reason: string | null
+  image_url: string
+}
+
+export interface EditJob {
+  id: string
+  batch_id: string
+  photo_id: string
+  compiled_prompt_id: string
+  engine: 'DETERMINISTIC' | 'GENERATIVE'
+  model: string | null
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+  error: string | null
+  image_version_id: string | null
+  estimated_cost_usd: number | null
+  actual_cost_usd: number | null
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+}
+
+export interface EditPreview {
+  items: Array<{ photo_id: string; eligible: boolean; reason?: string; prompt_id?: string; prompt_version?: number; prompt_text?: string }>
+  engine: 'DETERMINISTIC' | 'GENERATIVE'
+  model: string | null
+  estimated_cost_usd: string | null
+  cost_note: string
+  availability: string
 }
 
 export interface Preset {

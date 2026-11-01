@@ -38,5 +38,9 @@ Follow [the Phase 02 owner review](PHASE_02_REVIEW.md). Automated checks must co
 
 Follow [the Phase 03 owner review](PHASE_03_REVIEW.md). Automated tests inject a fake provider and cover authorization denial, bounded requests, cost estimate, cache reuse/invalidation, raw-response isolation, conflict blocking, semantic consent, immutable prompt edits, publication-profile snapshot, approval, and stale invalidation. Live provider work is NOT_RUN until the owner selects a provider and explicitly authorizes that run. Manual review verifies the visible JPEG/1600px publication profile, inspectable prompt inputs/history, and that approval never executes an edit.
 
+## Phase 04 gate
+
+Follow [the Phase 04 owner review](PHASE_04_REVIEW.md). Automated tests must prove that the original hash remains stable, the publication input matches the exact selected profile, provider input is the derivative rather than the source, attempts and failed receipts are retained, repeated request keys do not make duplicate versions, rejected identical attempts require an override, and approval is an explicit event. Test concurrent claims and restart behavior without a network service. The owner inspects the original and every generated version visually. A limited paid trial is optional and requires separate current-run authorization and account configuration; automated tests never make paid calls. Phase 04 is not owner-approved merely because code tests pass.
+
 ## Phase 00 gate
 Audit document inventory, reference integrity, phase naming/branch, lifecycle consistency, risk/deferral register. No runnable application, image processing, UI or AI tests should be claimed for Phase 00.

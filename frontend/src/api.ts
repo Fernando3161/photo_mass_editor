@@ -1,4 +1,4 @@
-import type { AnalysisEstimate, AnalysisRun, CompiledPrompt, Options, PhotoDetail, PhotoSummary, Preset, SavePayload } from './types'
+import type { AnalysisEstimate, AnalysisRun, CompiledPrompt, EditJob, EditPreview, ImageVersion, Options, PhotoDetail, PhotoSummary, Preset, SavePayload } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init)
@@ -41,4 +41,22 @@ export const api = {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ compiled_text: compiledText }),
   }),
   approvePrompt: (promptId: string) => request<CompiledPrompt>(`/api/prompts/${promptId}/approve`, { method: 'POST' }),
+  previewEdits: (photoIds: string[], engine: 'DETERMINISTIC' | 'GENERATIVE', settings: Record<string, number>, maskId: string | null, retryOverride: boolean) => request<EditPreview>('/api/edit/preview', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_ids: photoIds, engine, settings, mask_id: maskId, retry_override: retryOverride }),
+  }),
+  runEdits: (photoIds: string[], engine: 'DETERMINISTIC' | 'GENERATIVE', settings: Record<string, number>, budget: number | null, retryOverride: boolean, maskId: string | null) => request<{ jobs: EditJob[] }>('/api/edit/batches', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ photo_ids: photoIds, engine, settings, authorized: true, budget_usd: budget,
+      retry_override: retryOverride, mask_id: maskId, request_key: crypto.randomUUID() }),
+  }),
+  getEdits: (photoId: string) => request<{ jobs: EditJob[]; versions: ImageVersion[] }>(`/api/photos/${photoId}/edits`),
+  getEditBatch: (batchId: string) => request<{ jobs: EditJob[] }>(`/api/edit/batches/${batchId}`),
+  cancelEditJob: (jobId: string) => request<EditJob>(`/api/edit/jobs/${jobId}/cancel`, { method: 'POST' }),
+  reviewVersion: (photoId: string, versionId: string, decision: 'APPROVED' | 'REJECTED', reason: string) => request<ImageVersion>(`/api/photos/${photoId}/versions/${versionId}/review`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, reason }),
+  }),
+  uploadMask: (photoId: string, file: File) => request<{ id: string; width: number; height: number }>(`/api/photos/${photoId}/masks`, {
+    method: 'POST', headers: { 'Content-Type': 'image/png' }, body: file,
+  }),
 }
