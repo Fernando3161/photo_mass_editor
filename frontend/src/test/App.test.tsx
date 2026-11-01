@@ -31,6 +31,9 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: { preview
       { id: 'ambient', slug: 'ambient', display_name: 'ambient', kind: 'CONTENT' },
       { id: 'night', slug: 'night', display_name: 'night', kind: 'CONDITION' },
     ], cities: ['Budapest', 'Berlin'], countries: ['Hungary', 'Germany'], presets: [{ id: 'natural', version: 1, name: 'Natural', structured_instructions: 'Keep it natural', updated_at: 'now' }], publication_profiles: [{ id: 'website-standard-v1', version: 1, name: 'Website standard', image_format: 'JPEG', file_extension: '.jpg', mime: 'image/jpeg', max_long_edge: 1600, quality: 85, color_space: 'sRGB', preserve_aspect_ratio: 1, allow_upscale: 0, strip_metadata: 1 }] })
+    if (url === '/api/export/preview') return Response.json({ target: 'website-standard-v1', approved_count: 1, items: [{ photo_id: 'one', version_id: 'version-one', width: 1200, height: 800, sha256: 'synthetic', location_included: false }] })
+    if (url === '/api/export' && init?.method === 'POST') return Response.json({ export_id: 'export-one', directory: 'exports/export-one', manifest: 'exports/export-one/manifest.json', cost_report: 'exports/export-one/cost_report.json', item_count: 1 })
+    if (url === '/api/export/audit') return Response.json({ referenced_files: 4, missing: [], changed: [], source_issues: [], orphaned: [], invalid_manifests: [], invalid_cost_reports: [] })
     if (url.endsWith('/edits')) return Response.json({ jobs: [], versions: [] })
     if (url === '/api/photos/one/prompts/compile' && init?.method === 'POST') return Response.json({ id: 'prompt-1', photo_id: 'one', version_number: 1, parent_prompt_id: null, compiled_text: 'Preserve documentary authenticity.', user_modified: 0, approved_for_job: 0, generated_at: 'now', approved_at: null, input_snapshot: {}, publication_profile_id: 'website-standard-v1', publication_profile_snapshot: {} })
     if (url === '/api/edit/preview' && init?.method === 'POST') return Response.json(edit?.preview || { items: [{ photo_id: 'one', eligible: true, prompt_version: 1, prompt_text: 'Preserve documentary authenticity.' }], engine: 'DETERMINISTIC', model: null, estimated_cost_usd: '0', cost_note: 'Local', availability: 'ready' })
@@ -59,6 +62,24 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: { preview
 describe('review workstation', () => {
   beforeEach(() => vi.useRealTimers())
   afterEach(() => vi.unstubAllGlobals())
+
+  it('requires an approved collection preview and explicit export authorization', async () => {
+    const fetchMock = mockFetch()
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByText('first.jpg')
+    await user.click(screen.getByRole('tab', { name: 'Export' }))
+    expect(screen.queryByRole('button', { name: 'Export approved collection' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Preview approved collection' }))
+    expect(await screen.findByText(/1 approved image/)).toBeTruthy()
+    const exportButton = screen.getByRole('button', { name: 'Export approved collection' }) as HTMLButtonElement
+    expect(exportButton.disabled).toBe(true)
+    await user.click(screen.getByLabelText('I authorize this approved collection export'))
+    expect(exportButton.disabled).toBe(false)
+    await user.click(exportButton)
+    expect(await screen.findByText(/Exported 1 image/)).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledWith('/api/export', expect.objectContaining({ method: 'POST' }))
+  })
 
   it('navigates with the keyboard and exposes an explicit empty edited state', async () => {
     mockFetch()
@@ -137,6 +158,8 @@ describe('review workstation', () => {
     await user.clear(budget)
     await user.type(budget, '0.25')
     fireEvent.keyDown(editing, { key: 'ArrowRight' })
+    expect(screen.getByRole('tab', { name: 'Export' }).getAttribute('aria-selected')).toBe('true')
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Export' }), { key: 'ArrowRight' })
     expect(screen.getByRole('tab', { name: 'Catalog and draft' }).getAttribute('aria-selected')).toBe('true')
     expect(screen.getByRole('textbox', { name: 'Description' })).toHaveProperty('value', 'River at night')
     await user.click(editing)

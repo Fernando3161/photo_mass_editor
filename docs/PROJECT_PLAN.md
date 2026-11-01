@@ -38,6 +38,7 @@ Tests: valid/invalid/missing GPS, city radius and ambiguity, no-GPS bulk assignm
 
 ## Phase 06 — Export, audit and usability
 Branch: `dev/v1-phase-06-export`.
+Implementation is on this branch for owner review. The real sample export and visual/privacy acceptance remain pending; follow [the Phase 06 review guide](PHASE_06_REVIEW.md) and [technical report](../reports/PHASE_06_TECHNICAL_REPORT.md).
 Approved-only export pipeline, EXIF/privacy handling, thumbnails and any target-specific derivatives, metadata manifest, cost report, acceptance walk-through with a real sample photo batch, and cleanup audit. The approved website image should already match its publication profile, so export must not silently perform another quality-changing resize. Export only confirmed editorial city/country, never private precise GPS by default. Tests: privacy, export version identity, manifest validity, image dimensions, data recovery. Acceptance: reproducible approved website collection and clear handoff.
 
 ## Phase reviews

@@ -8,15 +8,16 @@ import { PromptPanel } from './components/PromptPanel'
 import { EditPanel } from './components/EditPanel'
 import { ReviewCanvas } from './components/ReviewCanvas'
 import { CatalogPrefillPanel } from './components/CatalogPrefillPanel'
+import { ExportPanel } from './components/ExportPanel'
 import type { AnalysisEstimate, CompiledPrompt, Options, PhotoDetail, PhotoSummary, Preset, ReviewForm, ReviewState, SavePayload } from './types'
 import './styles.css'
 
 type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'error' | 'recovered'
-type WorkspaceTab = 'details' | 'suggestions' | 'prompt' | 'editing'
+type WorkspaceTab = 'details' | 'suggestions' | 'prompt' | 'editing' | 'export'
 
 const emptyOptions: Options = { subjects: [], tags: [], presets: [], publication_profiles: [], cities: [], countries: [] }
 const defaultFilters: Filters = { query: '', state: 'ALL', subject: '', tag: '', city: '', date: '' }
-const workspaceTabs = [['details', 'Catalog and draft'], ['suggestions', 'Suggestions'], ['prompt', 'Analysis and prompt'], ['editing', 'Editing and versions']] as const
+const workspaceTabs = [['details', 'Catalog and draft'], ['suggestions', 'Suggestions'], ['prompt', 'Analysis and prompt'], ['editing', 'Editing and versions'], ['export', 'Export']] as const
 
 function formFromPhoto(photo: PhotoDetail): ReviewForm {
   return {
@@ -415,6 +416,9 @@ export default function App() {
             </div>
             <div className="work-pane" role="tabpanel" id="pane-editing" aria-labelledby="tab-editing" hidden={workspaceTab !== 'editing'}>
               <EditPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} selectedVersionId={selectedVersionId} onSelectVersion={setSelectedVersionId} onBeforeRun={() => saveNow()} onRefresh={refreshCurrentPhoto} />
+            </div>
+            <div className="work-pane" role="tabpanel" id="pane-export" aria-labelledby="tab-export" hidden={workspaceTab !== 'export'}>
+              <ExportPanel />
             </div>
           </section>
         </> : <div className="center-message"><p>Select a photo to begin.</p></div>}

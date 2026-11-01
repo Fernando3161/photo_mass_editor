@@ -20,7 +20,11 @@ Website derivative strips precise GPS by default; maintain private GPS separatel
 
 ## Phase 01 implemented behavior
 
-The CLI defaults to read-only source references. Managed copies require `--mode copy`. Catalog records contain absolute source paths, repository-data-relative managed and thumbnail paths, source and thumbnail SHA-256, a stable UUID, and a duplicate candidate link when bytes match another source. `preflight` detects missing/changed media; `relink` accepts a moved original only when its checksum matches. Sidecars and known unsupported RAW/HEIC files are reported without interpretation. Backup/restore automation and an orphan scanner remain future work.
+The CLI defaults to read-only source references. Managed copies require `--mode copy`. Catalog records contain absolute source paths, repository-data-relative managed and thumbnail paths, source and thumbnail SHA-256, a stable UUID, and a duplicate candidate link when bytes match another source. `preflight` detects missing/changed media; `relink` accepts a moved original only when its checksum matches. Sidecars and known unsupported RAW/HEIC files are reported without interpretation. Phase 06 adds a SQLite snapshot command and read-only media audit; media still need a separate backup.
+
+## Phase 06 export behavior
+
+`backend.review.export_cli preview` validates each approved website version, its owner approval event, source hash, job/profile provenance, image hash, dimensions, JPEG format, and absence of embedded EXIF. `export --authorized` creates a new, never overwritten collection under the configured catalog's `exports/` folder. The website image is copied byte for byte; only the separate 320 px thumbnail is encoded. The manifest contains approved version identity, file hashes, dimensions, confirmed editorial city/country when both exist, reviewed description/subject and confirmed tags. It excludes original filenames/paths, raw EXIF and private GPS. The cost report lists editing and analysis estimates, known actual amounts and unknown actual counts; it does not imply a provider billing cap. The audit reports missing, changed and unreferenced files without deleting them. SQLite backup is a consistent snapshot but does not include media.
 
 ## Phase 02 implemented behavior
 

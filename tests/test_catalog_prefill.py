@@ -223,7 +223,7 @@ class CatalogPrefillTests(unittest.TestCase):
             with self.assertRaises(ModelUnavailable):
                 manager.ensure(offline=True)
 
-    def test_phase_six_catalog_migrates_to_seven_without_losing_rows(self):
+    def test_phase_four_catalog_migrates_to_eight_without_losing_rows(self):
         folder = self.root / "legacy"
         folder.mkdir()
         database = folder / "catalog.sqlite"
@@ -238,8 +238,9 @@ class CatalogPrefillTests(unittest.TestCase):
             db.close()
         db = connect(folder)
         try:
-            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 7)
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 8)
             self.assertEqual(db.execute("SELECT display_name FROM subjects WHERE id='legacy'").fetchone()[0], "Legacy subject")
+            self.assertIsNotNone(db.execute("SELECT name FROM sqlite_master WHERE name='exports'").fetchone())
             self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")
         finally:
             db.close()

@@ -26,6 +26,7 @@ from .editing import (
     list_jobs, preview_batch, recover_jobs, review_version, run_job, save_mask, version_media,
 )
 from .image_pipeline import ImageIntegrityError, ensure_publication_input, private_path
+from .export import ExportError, audit_artifacts, create_export, preview_export
 from .openai_edit import configured_provider
 from .local_model import ModelManager, ModelUnavailable
 from .catalog_prefill import (
@@ -122,6 +123,10 @@ class LocationBatch(BaseModel):
     expected_revisions: dict[str, int] | None = None
 
 
+class ExportRequest(BaseModel):
+    authorized: bool = False
+
+
 def create_app(
     data_dir: Path,
     frontend_dist: Path | None = None,
@@ -154,6 +159,43 @@ def create_app(
     @app.get("/api/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/api/export/preview")
+    def export_preview() -> dict:
+        try:
+            return preview_export(root)
+        except (ExportError, ImageIntegrityError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/export")
+    def export_website(payload: ExportRequest) -> dict:
+        if not payload.authorized:
+            raise HTTPException(status_code=403, detail="Current-run export authorization is required")
+        try:
+            return create_export(root)
+        except (ExportError, ImageIntegrityError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/export/audit")
+    def export_audit() -> dict:
+        return audit_artifacts(root)
+
+    @app.get("/api/export/{export_id}/{document}")
+    def export_document(export_id: str, document: Literal["manifest", "cost_report"]):
+        db = connect(root)
+        try:
+            row = db.execute(
+                "SELECT manifest_path,cost_report_path FROM exports WHERE id=? AND status='COMPLETE'",
+                (export_id,),
+            ).fetchone()
+        finally:
+            db.close()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Export not found")
+        path = private_path(root, row["manifest_path" if document == "manifest" else "cost_report_path"])
+        if not path.is_file():
+            raise HTTPException(status_code=409, detail="Export document is missing")
+        return FileResponse(path, media_type="application/json", filename=f"{document}-{export_id}.json")
 
     @app.get("/api/photos")
     def photos() -> list[dict]:

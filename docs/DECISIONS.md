@@ -66,5 +66,10 @@ The owner approved Phase 04 and requested a local image-recognition and location
 
 Phase 05 uses the pinned MIT-listed `Xenova/clip-vit-base-patch32` ONNX quantized model with CPU ONNX Runtime, NumPy, and tokenizers. It downloads checked files only when local recognition is explicitly run (or when the owner asks setup to prefetch); neither user photos nor GPS are sent to the model host. The model classifies a small controlled label set from a verified thumbnail. Similarity scores are relative and exact landmark names remain owner-entered. Private GPS is matched by a server-side Haversine distance against owner-entered city centers/radii; close competing matches are ambiguous. Acceptance is explicit and cannot change semantic consent or image approval. The implementation and owner pilot are recorded in the Phase 05 report.
 
+## ADR-018 — Approved export identity and privacy (2026-11-01)
+
+The website profile already yields a validated publication JPEG. Export copies its bytes without another resize or re-encode. A separate small JPEG thumbnail supports browsing. A new UUID directory and SQLite receipt preserve each export; a failed preparation remains for the read-only audit rather than deleting evidence. The manifest uses owner-entered or explicitly accepted editorial city/country when both fields are present, confirmed tags, and reviewed description/subject. It excludes original filenames, raw EXIF, precise GPS, local paths, and analysis suggestions that were not accepted. The cost report distinguishes known actual costs from missing receipts. A SQLite online backup can be taken before the Phase 06 migration; a complete recovery also needs the source and generated media files. Alternative considered: re-encoding the approved website image; rejected because it would change quality and break approved-version identity.
+
 ## Governance
+
 These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here. Development agents leave decision changes unstaged and uncommitted; the owner manually stages and commits them after review. Automatic commits are forbidden.

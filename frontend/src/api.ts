@@ -15,6 +15,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  previewExport: () => request<{ target: string; approved_count: number; items: { photo_id: string; version_id: string; width: number; height: number; sha256: string; location_included: boolean }[] }>('/api/export/preview'),
+  createExport: () => request<{ export_id: string; directory: string; manifest: string; cost_report: string; item_count: number }>('/api/export', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ authorized: true }),
+  }),
+  auditExport: () => request<{ referenced_files: number; missing: string[]; changed: string[]; source_issues: string[]; orphaned: string[]; invalid_manifests: string[]; invalid_cost_reports: string[] }>('/api/export/audit'),
   cities: () => request<VisitedCity[]>('/api/catalog/cities'),
   createCity: (payload: { city: string; country: string; latitude: number; longitude: number; radius_km: number }) => request<VisitedCity>('/api/catalog/cities', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),

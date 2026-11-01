@@ -1,8 +1,8 @@
-name: Phase 05 local catalog prefill
+name: Phase 06 approved export
 
 on:
   push:
-    branches: ["dev/v1-phase-05-catalog-prefill"]
+    branches: ["dev/v1-phase-06-export"]
   pull_request:
 
 jobs:
