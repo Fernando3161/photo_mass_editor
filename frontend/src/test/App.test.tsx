@@ -18,7 +18,12 @@ const detail = (summary: PhotoSummary, versions: ImageVersion[] = []): PhotoDeta
   prompt_history: [],
 })
 
-function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: { preview?: Record<string, unknown>; batchGate?: Promise<void>; versions?: ImageVersion[] }) {
+function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: {
+  preview?: Record<string, unknown>
+  batchGate?: Promise<void>
+  versions?: ImageVersion[]
+  localPreview?: (body: { settings: Record<string, number | number[]> }) => Promise<Response>
+}) {
   let catalog = structuredClone(summaries)
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -37,6 +42,10 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: { preview
     if (url === '/api/export/export-one/open-folder' && init?.method === 'POST') return Response.json({ opened: true })
     if (url === '/api/export/audit') return Response.json({ referenced_files: 4, missing: [], changed: [], source_issues: [], orphaned: [], invalid_manifests: [], invalid_cost_reports: [] })
     if (url.endsWith('/local-recommendation') || url.includes('/local-recommendation?')) return Response.json({ photo_id: url.includes('/two/') ? 'two' : 'one', photo_revision: 0, preset_id: 'natural', preset_name: 'Natural', presets: [{ id: 'natural', name: 'Natural' }], analysis_version: 'test', measurements: { luminance_p01: .1, luminance_median: .5, luminance_p99: .9, geometry_note: 'Manual geometry only.', white_balance_note: 'Conservative balance.' }, settings: { preset_id: 'natural', levels_strength: .5, black_point: .01, white_point: .99, exposure_ev: .1, red_gain: 1, blue_gain: 1, shadow_lift: .1, highlight_compression: .1, denoise: 0, sharpen: .1, straighten_deg: 0, lens_k1: 0, perspective_vertical: 0, crop: [0, 0, 1, 1] } })
+    if (url.endsWith('/local-preview') && init?.method === 'POST') {
+      if (edit?.localPreview) return edit.localPreview(JSON.parse(String(init.body)))
+      return new Response(new Blob(['preview'], { type: 'image/jpeg' }), { headers: { 'Content-Type': 'image/jpeg' } })
+    }
     if (url.endsWith('/local-edits') && init?.method === 'POST') return Response.json({ id: 'local-job', photo_id: 'one', recipe_id: 'recipe-one', status: 'QUEUED', image_version_id: null, master_width: null, master_height: null, error: null })
     if (url.endsWith('/local-edits')) return Response.json({ jobs: [] })
     if (url.endsWith('/edits')) return Response.json({ jobs: [], versions: edit?.versions || [] })
@@ -266,11 +275,56 @@ describe('review workstation', () => {
     expect(screen.getAllByRole('slider')).toHaveLength(17)
     expect(screen.getByRole('complementary', { name: 'Local correction preview' })).toBeTruthy()
     fireEvent.change(levels, { target: { value: '0.6' } })
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) =>
+      String(url) === '/api/photos/one/local-preview' && init?.method === 'POST' && JSON.parse(String(init.body)).settings.levels_strength === .6)).toBe(true))
+    expect(screen.getByLabelText('Live preview while adjusting')).toHaveProperty('checked', true)
     expect(screen.queryByLabelText('Run budget in USD')).toBeNull()
     expect(screen.queryByText(/prompt v1/)).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Create local version' }))
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) =>
       String(url) === '/api/photos/one/local-edits' && init?.method === 'POST' && JSON.parse(String(init.body)).settings.levels_strength === .6)).toBe(true))
+  })
+
+  it('does not replace the latest live preview when an older request finishes late', async () => {
+    let releaseFirst!: () => void
+    const firstPreviewGate = new Promise<void>((resolve) => { releaseFirst = resolve })
+    let previewCalls = 0
+    let oldBlobRead = false
+    const responseFor = (name: string, onRead?: () => void) => {
+      const blob = Object.assign(new Blob([name], { type: 'image/jpeg' }), { previewName: name })
+      return { ok: true, blob: async () => {
+        onRead?.()
+        return blob
+      } } as unknown as Response
+    }
+    mockFetch(false, undefined, {
+      localPreview: async (body) => {
+        previewCalls += 1
+        if (previewCalls === 1) {
+          await firstPreviewGate
+          return responseFor('old', () => { oldBlobRead = true })
+        }
+        return responseFor(`levels-${body.settings.levels_strength}`)
+      },
+    })
+    vi.mocked(URL.createObjectURL).mockImplementation((blob) =>
+      `blob:${(blob as Blob & { previewName?: string }).previewName || 'unknown'}`)
+
+    render(<App />)
+    await screen.findByText('first.jpg')
+    await userEvent.click(screen.getByRole('tab', { name: 'Editing and versions' }))
+    const levels = await screen.findByRole('slider', { name: /Auto levels strength/ })
+    await waitFor(() => expect(previewCalls).toBe(1))
+
+    fireEvent.change(levels, { target: { value: '0.6' } })
+    await waitFor(() => expect(previewCalls).toBe(2))
+    const image = await screen.findByAltText('Preview of local correction') as HTMLImageElement
+    await waitFor(() => expect(image.getAttribute('src')).toBe('blob:levels-0.6'))
+
+    releaseFirst()
+    await waitFor(() => expect(oldBlobRead).toBe(true))
+    expect(image.getAttribute('src')).toBe('blob:levels-0.6')
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(1)
   })
 
   it('requires explicit replacement mode and labels the final replacement approval', async () => {

@@ -16,8 +16,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   localRecommendation: (photoId: string, presetId?: string) => request<LocalRecommendation>(`/api/photos/${photoId}/local-recommendation${presetId ? `?preset_id=${encodeURIComponent(presetId)}` : ''}`),
-  localPreview: async (photoId: string, settings: LocalSettings): Promise<Blob> => {
-    const response = await fetch(`/api/photos/${photoId}/local-preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings }) })
+  localPreview: async (photoId: string, settings: LocalSettings, signal?: AbortSignal): Promise<Blob> => {
+    const response = await fetch(`/api/photos/${photoId}/local-preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings }), signal })
     if (!response.ok) {
       const body = await response.json().catch(() => ({ detail: response.statusText }))
       throw new Error(typeof body.detail === 'string' ? body.detail : 'Local preview failed')

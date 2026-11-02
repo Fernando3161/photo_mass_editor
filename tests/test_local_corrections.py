@@ -12,8 +12,10 @@ from PIL import Image
 
 from backend.catalog.database import connect
 from backend.catalog.ingestion import import_photo, sha256
+from backend.review import local_corrections as local_corrections_module
 from backend.review.app import create_app
 from backend.review.export import audit_artifacts, preview_export
+from backend.review.image_pipeline import ImageIntegrityError
 from backend.review.local_corrections import (
     LocalCorrectionError, apply_recipe, enqueue, master_media, preview, recommend, run_job,
     validate_settings,
@@ -99,6 +101,20 @@ class LocalCorrectionTests(unittest.TestCase):
         self.assertEqual(sha256(self.source), self.source_hash)
         with self.assertRaises(LocalCorrectionError):
             validate_settings(settings | {"crop": [.6, 0, .5, 1]})
+
+    def test_interactive_preview_reuses_working_image_and_invalidates_changed_source(self):
+        settings = recommend(self.data, self.photo_id)["settings"]
+        local_corrections_module._interactive_source.cache_clear()
+        first = preview(self.data, self.photo_id, settings)
+        after_first = local_corrections_module._interactive_source.cache_info()
+        brighter = preview(self.data, self.photo_id, settings | {"exposure_ev": .3})
+        after_second = local_corrections_module._interactive_source.cache_info()
+        self.assertNotEqual(first, brighter)
+        self.assertEqual(after_second.hits, after_first.hits + 1)
+        self.assertEqual(sha256(self.source), self.source_hash)
+        Image.new("RGB", (900, 600), "#123456").save(self.source)
+        with self.assertRaises(ImageIntegrityError):
+            preview(self.data, self.photo_id, settings)
 
     def test_api_queues_local_without_prompt_paid_authorization_or_budget(self):
         settings = recommend(self.data, self.photo_id)["settings"]

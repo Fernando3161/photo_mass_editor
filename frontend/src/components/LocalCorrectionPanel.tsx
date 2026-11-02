@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { api } from '../api'
 import type { LocalJob, LocalRecommendation, LocalSettings, PhotoDetail } from '../types'
 
@@ -40,7 +40,62 @@ export function LocalCorrectionPanel({ photo, onBeforeRun, onRefresh, reviewArea
   const [message, setMessage] = useState('')
   const [retryOverride, setRetryOverride] = useState(false)
   const [replaceApproved, setReplaceApproved] = useState(false)
+  const [livePreview, setLivePreview] = useState(true)
+  const [previewState, setPreviewState] = useState<'IDLE' | 'SCHEDULED' | 'LOADING' | 'READY' | 'ERROR'>('IDLE')
+  const previewTimer = useRef<number | null>(null)
+  const previewController = useRef<AbortController | null>(null)
+  const previewSequence = useRef(0)
+  const latestPreviewSettings = useRef<LocalSettings | null>(null)
+  const lastPreviewStarted = useRef(0)
+  const livePreviewRef = useRef(true)
+  const previewUrlRef = useRef<string | null>(null)
   const hasApproved = photo.versions.some((version) => version.review_status === 'APPROVED')
+
+  const schedulePreview = useCallback((next: LocalSettings, immediate = false) => {
+    latestPreviewSettings.current = next
+    previewSequence.current += 1
+    if (!livePreviewRef.current && !immediate) return
+    if (previewTimer.current !== null) {
+      if (!immediate) return
+      window.clearTimeout(previewTimer.current)
+      previewTimer.current = null
+    }
+    const elapsed = performance.now() - lastPreviewStarted.current
+    const delay = immediate ? 0 : Math.max(0, 150 - elapsed)
+    setPreviewState(delay ? 'SCHEDULED' : 'LOADING')
+    previewTimer.current = window.setTimeout(() => {
+      previewTimer.current = null
+      const target = latestPreviewSettings.current
+      if (!target) return
+      previewController.current?.abort()
+      const controller = new AbortController()
+      previewController.current = controller
+      const sequence = previewSequence.current
+      lastPreviewStarted.current = performance.now()
+      setPreviewState('LOADING')
+      void api.localPreview(photo.id, target, controller.signal).then(async (blob) => {
+        if (sequence !== previewSequence.current) return
+        const nextUrl = URL.createObjectURL(blob)
+        const candidate = new Image()
+        candidate.src = nextUrl
+        if (typeof candidate.decode === 'function') await candidate.decode().catch(() => {})
+        if (sequence !== previewSequence.current) {
+          URL.revokeObjectURL(nextUrl)
+          return
+        }
+        setPreviewUrl((current) => {
+          if (current) URL.revokeObjectURL(current)
+          previewUrlRef.current = nextUrl
+          return nextUrl
+        })
+        setPreviewState('READY')
+      }).catch((error: Error) => {
+        if (error.name === 'AbortError' || sequence !== previewSequence.current) return
+        setPreviewState('ERROR')
+        setMessage(error.message)
+      })
+    }, delay)
+  }, [photo.id])
 
   useEffect(() => {
     let active = true
@@ -49,13 +104,39 @@ export function LocalCorrectionPanel({ photo, onBeforeRun, onRefresh, reviewArea
     setMessage('')
     setRetryOverride(false)
     setReplaceApproved(false)
+    setLivePreview(true)
+    livePreviewRef.current = true
+    latestPreviewSettings.current = null
+    lastPreviewStarted.current = 0
+    if (previewTimer.current !== null) window.clearTimeout(previewTimer.current)
+    previewTimer.current = null
+    previewController.current?.abort()
+    previewController.current = null
+    previewSequence.current += 1
+    setPreviewState('IDLE')
+    setPreviewUrl((current) => {
+      if (current) URL.revokeObjectURL(current)
+      previewUrlRef.current = null
+      return null
+    })
     void api.localRecommendation(photo.id).then((result) => {
-      if (active) { setRecommendation(result); setSettings(result.settings) }
+      if (active) {
+        setRecommendation(result)
+        setSettings(result.settings)
+        schedulePreview(result.settings, true)
+      }
     }).catch((error: Error) => { if (active) setMessage(error.message) })
     void api.localJobs(photo.id).then((result) => { if (active) setJobs(result.jobs) })
       .catch((error: Error) => { if (active) setMessage(error.message) })
-    return () => { active = false }
-  }, [photo.id])
+    return () => {
+      active = false
+      if (previewTimer.current !== null) window.clearTimeout(previewTimer.current)
+      previewTimer.current = null
+      previewController.current?.abort()
+      previewController.current = null
+      previewSequence.current += 1
+    }
+  }, [photo.id, schedulePreview])
 
   useEffect(() => {
     if (!jobs.some((job) => job.status === 'QUEUED' || job.status === 'RUNNING')) return
@@ -71,12 +152,16 @@ export function LocalCorrectionPanel({ photo, onBeforeRun, onRefresh, reviewArea
     return () => window.clearInterval(timer)
   }, [jobs, photo.id, onRefresh])
 
-  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl) }, [previewUrl])
+  useEffect(() => () => {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current)
+    previewUrlRef.current = null
+  }, [])
 
   const change = (key: keyof LocalSettings, value: number) => {
     if (!settings) return
-    setSettings({ ...settings, [key]: value })
-    setPreviewUrl(null)
+    const next = { ...settings, [key]: value }
+    setSettings(next)
+    schedulePreview(next)
   }
 
   const choosePreset = async (presetId: string) => {
@@ -85,21 +170,25 @@ export function LocalCorrectionPanel({ photo, onBeforeRun, onRefresh, reviewArea
       const result = await api.localRecommendation(photo.id, presetId)
       setRecommendation(result)
       setSettings(result.settings)
-      setPreviewUrl(null)
+      schedulePreview(result.settings, true)
       setMessage('Recommended settings loaded.')
     } catch (error) { setMessage((error as Error).message) }
     finally { setBusy(false) }
   }
 
-  const preview = async () => {
-    if (!settings) return
-    setBusy(true)
-    try {
-      const blob = await api.localPreview(photo.id, settings)
-      setPreviewUrl(URL.createObjectURL(blob))
-      setMessage('Local preview ready. The final master renders at source resolution.')
-    } catch (error) { setMessage((error as Error).message) }
-    finally { setBusy(false) }
+  const toggleLivePreview = (enabled: boolean) => {
+    setLivePreview(enabled)
+    livePreviewRef.current = enabled
+    if (enabled && settings) {
+      schedulePreview(settings, true)
+      return
+    }
+    if (previewTimer.current !== null) window.clearTimeout(previewTimer.current)
+    previewTimer.current = null
+    previewController.current?.abort()
+    previewController.current = null
+    previewSequence.current += 1
+    setPreviewState(previewUrl ? 'READY' : 'IDLE')
   }
 
   const run = async () => {
@@ -132,11 +221,13 @@ export function LocalCorrectionPanel({ photo, onBeforeRun, onRefresh, reviewArea
           return <label className="correction-slider" key={label}><span className="slider-heading"><span>{label}</span><output>{Math.round(settings.crop[index] * 100)}%</output></span><input aria-label={`${label} crop`} type="range" min={Math.round(limits[0])} max={Math.round(limits[1])} step="1" value={Math.round(settings.crop[index] * 100)} onChange={(event) => {
             const crop = [...settings.crop] as LocalSettings['crop']
             crop[index] = Number(event.target.value) / 100
-            setSettings({ ...settings, crop })
-            setPreviewUrl(null)
+            const next = { ...settings, crop }
+            setSettings(next)
+            schedulePreview(next)
           }} /></label>
         })}</div></details>
-        <div className="edit-button-row"><button type="button" className="button-secondary" disabled={busy} onClick={() => { setSettings(recommendation.settings); setPreviewUrl(null) }}>Reset</button><button type="button" className="button-secondary" disabled={busy} onClick={() => void preview()}>Preview local correction</button></div>
+        <label className="consent-row"><input type="checkbox" checked={livePreview} onChange={(event) => toggleLivePreview(event.target.checked)} /> Live preview while adjusting</label>
+        <div className="edit-button-row"><button type="button" className="button-secondary" disabled={busy} onClick={() => { setSettings(recommendation.settings); schedulePreview(recommendation.settings, true) }}>Reset</button><button type="button" className="button-secondary" disabled={busy || !settings} onClick={() => settings && schedulePreview(settings, true)}>Refresh preview</button></div>
         <label className="consent-row"><input type="checkbox" checked={retryOverride} onChange={(event) => setRetryOverride(event.target.checked)} /> Retry an identical rejected recipe</label>
         {hasApproved && <label className="consent-row"><input type="checkbox" checked={replaceApproved} onChange={(event) => setReplaceApproved(event.target.checked)} /> Create a replacement for the approved version</label>}
         <button type="button" className="button-primary" disabled={busy || (hasApproved && !replaceApproved) || jobs.some((job) => job.status === 'QUEUED' || job.status === 'RUNNING')} onClick={() => void run()}>{hasApproved ? 'Create replacement version' : 'Create local version'}</button>
@@ -146,8 +237,8 @@ export function LocalCorrectionPanel({ photo, onBeforeRun, onRefresh, reviewArea
       {jobs.length > 0 && <details><summary>Local job receipts ({jobs.length})</summary><ol>{jobs.map((job) => <li key={job.id}>{job.status.toLowerCase()} · {job.id.slice(0, 8)}{job.error ? ` · ${job.error}` : ''}</li>)}</ol></details>}
     </section>
     <aside className="edit-preview-column" aria-label="Local correction preview">
-      <div className="edit-column-heading"><span>Preview local correction</span><small>Preview · final renders at source resolution</small></div>
-      <div className={`edit-preview-stage ${previewUrl ? '' : 'is-empty'}`}>{previewUrl ? <img className="local-preview-image" src={previewUrl} alt="Preview of local correction" /> : <div className="preview-placeholder"><span aria-hidden="true">◇</span><strong>No preview yet</strong><p>Adjust the bars, then preview the correction here.</p></div>}</div>
+      <div className="edit-column-heading"><span>Preview local correction</span><small aria-live="polite">{previewState === 'LOADING' || previewState === 'SCHEDULED' ? 'Updating…' : livePreview ? 'Live preview · final renders at source resolution' : 'Manual preview · final renders at source resolution'}</small></div>
+      <div className={`edit-preview-stage ${previewUrl ? '' : 'is-empty'} ${previewState === 'LOADING' || previewState === 'SCHEDULED' ? 'is-updating' : ''}`} aria-busy={previewState === 'LOADING' || previewState === 'SCHEDULED'}>{previewUrl ? <img className="local-preview-image" src={previewUrl} alt="Preview of local correction" /> : <div className="preview-placeholder"><span aria-hidden="true">◇</span><strong>{previewState === 'LOADING' || previewState === 'SCHEDULED' ? 'Preparing live preview' : 'No preview yet'}</strong><p>Move a correction slider to render the local preview automatically.</p></div>}</div>
       {reviewArea}
     </aside>
   </div>

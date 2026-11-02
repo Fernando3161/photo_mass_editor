@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from io import BytesIO
 import hashlib
 import json
@@ -37,7 +38,7 @@ class LocalCorrectionError(ValueError):
     pass
 
 
-def _photo_and_profile(db: sqlite3.Connection, photo_id: str):
+def _photo_and_profile(db: sqlite3.Connection, photo_id: str, *, verify_source: bool = True):
     photo = db.execute("SELECT * FROM photos WHERE id=?", (photo_id,)).fetchone()
     if photo is None:
         raise KeyError(photo_id)
@@ -50,9 +51,27 @@ def _photo_and_profile(db: sqlite3.Connection, photo_id: str):
     if profile is None:
         raise LocalCorrectionError("An active publication profile is required")
     source = Path(photo["original_path"])
-    if not source.is_file() or sha256(source) != photo["sha256"]:
+    if not source.is_file() or (verify_source and sha256(source) != photo["sha256"]):
         raise ImageIntegrityError("Original photograph is missing or changed")
     return photo, dict(profile), source
+
+
+@lru_cache(maxsize=8)
+def _interactive_source(path_value: str, expected_hash: str, size: int,
+                        modified_ns: int) -> Image.Image:
+    """Return a verified, oriented working image keyed by source identity and file stat."""
+    source = Path(path_value)
+    before = source.stat()
+    if before.st_size != size or before.st_mtime_ns != modified_ns or sha256(source) != expected_hash:
+        raise ImageIntegrityError("Original photograph is missing or changed")
+    with Image.open(source) as opened:
+        sample = _rgb(opened)
+        sample.thumbnail((960, 960), Image.Resampling.LANCZOS)
+        sample.load()
+    after = source.stat()
+    if after.st_size != size or after.st_mtime_ns != modified_ns:
+        raise ImageIntegrityError("Original changed while preparing the interactive preview")
+    return sample
 
 
 def _choose_preset(db: sqlite3.Connection, photo_id: str, median: float) -> str:
@@ -247,14 +266,17 @@ def preview(data_dir: Path, photo_id: str, settings: dict) -> bytes:
     settings = validate_settings(settings)
     db = connect(data_dir)
     try:
-        photo, _, source = _photo_and_profile(db, photo_id)
-        with Image.open(source) as opened:
-            sample = _rgb(opened)
-            sample.thumbnail((960, 960), Image.Resampling.LANCZOS)
-            result = apply_recipe(sample, settings)
-            payload = BytesIO()
-            result.save(payload, format="JPEG", quality=85)
-        if sha256(source) != photo["sha256"]:
+        photo, _, source = _photo_and_profile(db, photo_id, verify_source=False)
+        source_stat = source.stat()
+        sample = _interactive_source(
+            str(source.resolve()), photo["sha256"], source_stat.st_size, source_stat.st_mtime_ns,
+        ).copy()
+        result = apply_recipe(sample, settings)
+        payload = BytesIO()
+        result.save(payload, format="JPEG", quality=85)
+        final_stat = source.stat()
+        if (final_stat.st_size != source_stat.st_size
+                or final_stat.st_mtime_ns != source_stat.st_mtime_ns):
             raise ImageIntegrityError("Original changed during local preview")
         return payload.getvalue()
     finally:
