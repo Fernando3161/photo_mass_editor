@@ -79,17 +79,19 @@ Expand **Catalog suggestions**. Authorize the current local recognition run and 
 
 Under **Private visited cities**, enter a city, country, center coordinates, and matching radius. The app matches private photo GPS to this list. Ambiguous or unmatched locations remain unconfirmed. For photos without GPS, preview a bounded bulk assignment, apply it only to empty locations, and undo if needed. Confirm every editorial location before export.
 
-### 4. Compile and approve an editing prompt
+### 4. Optional prompt for generative editing
 
-Open **Analysis and final prompt**. Paid analysis is optional and the default analysis provider is unavailable. You can write your own instructions without it. Click **Compile prompt preview**, read the full text and any conflict warning, edit if needed, then **Save as new version**. Click **Approve current prompt** on the version you want. Saving photo metadata or draft changes makes approval stale; compile and approve again.
+For a generative edit, open **Analysis and final prompt**. Paid analysis is optional and the default analysis provider is unavailable. You can write your own instructions without it. Click **Compile prompt preview**, read the full text and any conflict warning, edit if needed, then **Save as new version**. Click **Approve current prompt** on the version you want. Saving photo metadata or draft changes makes approval stale; compile and approve again. Local correction does not use this prompt.
 
 ### 5. Create and review an edit
 
-Open **Editing and versions**. Choose **Local deterministic correction** for exposure, contrast, color, sharpness, or denoise. Choose **Generative image edit** only for a deliberate provider operation. Start with **Current photo**; a bounded first-20-visible batch is available after a small trial. The generative input is a validated publication-sized derivative, never the original. An optional transparent PNG mask must match it; a mask cannot guarantee protected pixels stay unchanged.
+Open **Editing and versions**. Local correction is preselected and loads a recommendation for this photo. Review the preset and levels, exposure, color balance, shadows, and highlights. Optionally adjust denoise, sharpen, straighten, lens/perspective, or crop; use **Reset to recommendation** to undo your adjustments. Click **Preview local correction** and then **Create local version**. This path requires no compiled prompt, budget, or paid-run checkbox. It creates a full-resolution PNG master and a separate website JPEG; both start private, and the JPEG begins **PENDING**. Choose **Generative image edit** only for a deliberate provider operation. Its input is a validated publication-sized derivative, never the original. An optional transparent PNG mask must match it; a mask cannot guarantee protected pixels stay unchanged.
 
-Click **Preview selected run** and inspect eligibility, prompt version, settings, and estimate. For a generative run, enter a planning budget at least as large as the estimate. This is an app gate, not a provider spending cap. Check **I authorize this current ... run**, then **Start authorized run**. Every attempt has a receipt and immutable version. Success creates a **PENDING** version, never automatic approval.
+For generative editing, click **Preview selected run** and inspect eligibility, prompt version, settings, and estimate. Enter a planning budget at least as large as the estimate. This is an app gate, not a provider spending cap. Check **I authorize this current paid run**, then **Start authorized run**. The first-20-visible batch remains available for this path. Every attempt has a receipt and immutable version. Success creates a **PENDING** version, never automatic approval.
 
 Select the version and compare it with the original, including edges, faces, text, geometry, and reconstructed areas. Click **Approve selected** only after visual review, or **Reject selected** and revise the instructions. Rejected versions remain in history. Default batches skip approved photos and avoid identical rejected attempts without the explicit retry override.
+
+To improve a photo that already has an approved version, check **Create a replacement for the approved version** in local correction, or enable replacement mode for a generative selection. The new version starts PENDING while the existing approval remains active. After comparing it, use **Approve and replace current**. The prior version stays downloadable and is labeled SUPERSEDED; only the new approval is eligible for export. Rejecting the candidate leaves the prior approval unchanged.
 
 ### 6. Export approved photos
 

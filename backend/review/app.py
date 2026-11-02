@@ -26,6 +26,7 @@ from backend.catalog.database import connect
 
 from .analysis import AnalysisProvider, AnalysisUnavailable, UnavailableAnalysisProvider
 from .analysis_service import estimate_analysis, run_analysis
+from . import local_corrections as local
 from .prompts import PromptConflict, approve_prompt, create_compiled_prompt, revise_prompt
 from .editing import (
     EditConflict, EditProvider, batch_jobs, cancel_job, enqueue_batch,
@@ -94,12 +95,26 @@ class EditBatch(BaseModel):
     budget_usd: Decimal | None = None
     request_key: str = Field(default_factory=lambda: uuid4().hex, min_length=8, max_length=100)
     retry_override: bool = False
+    replace_approved: bool = False
     mask_id: str | None = None
+
+
+class LocalRecipeRequest(BaseModel):
+    settings: dict
+    expected_revision: int = Field(ge=0)
+    request_key: str = Field(default_factory=lambda: uuid4().hex, min_length=8, max_length=100)
+    retry_override: bool = False
+    replace_approved: bool = False
+
+
+class LocalPreviewRequest(BaseModel):
+    settings: dict
 
 
 class ReviewDecision(BaseModel):
     decision: Literal["APPROVED", "REJECTED"]
     reason: str | None = Field(default=None, max_length=1000)
+    replace_approved: bool = False
 
 
 class CitySave(BaseModel):
@@ -150,6 +165,7 @@ def create_app(
     async def lifespan(_app: FastAPI):
         if (root / "catalog.sqlite").is_file():
             recover_jobs(root, editor, executor)
+            local.recover_jobs(root)
         yield
         executor.shutdown(wait=True, cancel_futures=True)
 
@@ -496,9 +512,53 @@ def create_app(
     def edit_preview(payload: EditBatch) -> dict:
         try:
             return preview_batch(root, payload.photo_ids, payload.engine, editor,
-                                 payload.settings, payload.mask_id, payload.retry_override)
+                                 payload.settings, payload.mask_id, payload.retry_override,
+                                 payload.replace_approved)
         except EditConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/photos/{photo_id}/local-recommendation")
+    def local_recommendation(photo_id: str, preset_id: str | None = None) -> dict:
+        try:
+            return local.recommend(root, photo_id, preset_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Photo not found") from exc
+        except (local.LocalCorrectionError, ImageIntegrityError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/photos/{photo_id}/local-preview")
+    def local_preview(photo_id: str, payload: LocalPreviewRequest):
+        try:
+            return Response(local.preview(root, photo_id, payload.settings), media_type="image/jpeg",
+                            headers={"Cache-Control": "no-store"})
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Photo not found") from exc
+        except (local.LocalCorrectionError, ImageIntegrityError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/photos/{photo_id}/local-edits")
+    def local_edit(photo_id: str, payload: LocalRecipeRequest) -> dict:
+        try:
+            job = local.enqueue(root, photo_id, payload.settings, payload.expected_revision,
+                                payload.request_key, payload.retry_override, payload.replace_approved)
+            if job["status"] == "QUEUED":
+                executor.submit(local.run_job, root, job["id"])
+            return job
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Photo not found") from exc
+        except (local.LocalCorrectionError, ImageIntegrityError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/photos/{photo_id}/local-edits")
+    def local_edits(photo_id: str) -> dict:
+        return {"jobs": local.list_jobs(root, photo_id)}
+
+    @app.get("/api/local/jobs/{job_id}")
+    def local_job(job_id: str) -> dict:
+        try:
+            return local.job_status(root, job_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Local job not found") from exc
 
     @app.post("/api/edit/batches")
     def edit_batches(payload: EditBatch) -> dict:
@@ -507,7 +567,7 @@ def create_app(
                 root, payload.photo_ids, payload.engine, payload.settings, editor,
                 authorized=payload.authorized, budget_usd=payload.budget_usd,
                 request_key=payload.request_key, retry_override=payload.retry_override,
-                mask_id=payload.mask_id,
+                mask_id=payload.mask_id, replace_approved=payload.replace_approved,
             )
             for job in jobs:
                 if job["status"] == "QUEUED":
@@ -585,10 +645,21 @@ def create_app(
         except ImageIntegrityError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    @app.get("/api/photos/{photo_id}/versions/{version_id}/master")
+    def local_master(photo_id: str, version_id: str):
+        try:
+            return FileResponse(local.master_media(root, photo_id, version_id), media_type="image/png",
+                                filename=f"photo-master-{version_id}.png")
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Local master not found") from exc
+        except ImageIntegrityError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.post("/api/photos/{photo_id}/versions/{version_id}/review")
     def decide_version(photo_id: str, version_id: str, payload: ReviewDecision) -> dict:
         try:
-            return review_version(root, photo_id, version_id, payload.decision, payload.reason)
+            return review_version(root, photo_id, version_id, payload.decision, payload.reason,
+                                  payload.replace_approved)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Edit version not found") from exc
         except (EditConflict, ImageIntegrityError) as exc:

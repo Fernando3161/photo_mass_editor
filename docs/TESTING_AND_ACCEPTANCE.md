@@ -56,3 +56,7 @@ Run the canonical environment setup and full backend/frontend checks; verify the
 
 ## Phase 00 gate
 Audit document inventory, reference integrity, phase naming/branch, lifecycle consistency, risk/deferral register. No runnable application, image processing, UI or AI tests should be claimed for Phase 00.
+
+## V2 Priority 1 gate
+
+Run backend `unittest` inside the canonical `.venv`, frontend Vitest, and the production TypeScript/Vite build. Synthetic images must show source hash stability, independent prompt-free local queueing, full-resolution PNG master plus a separate validated website JPEG, no publication-input or lossy JPEG before local processing, deterministic recipe replay, safe crop/geometry bounds, receipt-linked pending version, and explicit approval before export. Test unchanged rejected recipe retry, API authorization split, and startup recovery. The owner separately compares a varied private sample at 100% zoom and records overcorrection, acceptance, click count, memory, render time, and disk use. Automated tests do not establish photographic quality or performance on 200 real photos. Follow the V2 Priority 1 review guide and report before owner acceptance.

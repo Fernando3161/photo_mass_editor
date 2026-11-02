@@ -55,13 +55,59 @@ export interface PhotoDetail extends PhotoSummary {
 export interface ImageVersion {
   id: string
   version_number: number
-  review_status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  review_status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED'
   created_at: string
   width: number
   height: number
   reviewed_at: string | null
   rejection_reason: string | null
+  replacement_of_version_id: string | null
+  superseded_by_version_id: string | null
+  superseded_at: string | null
   image_url: string
+  master_url?: string | null
+  engine?: 'DETERMINISTIC' | 'GENERATIVE' | null
+}
+
+export interface LocalSettings {
+  preset_id: string
+  levels_strength: number
+  black_point: number
+  white_point: number
+  exposure_ev: number
+  red_gain: number
+  blue_gain: number
+  shadow_lift: number
+  highlight_compression: number
+  denoise: number
+  sharpen: number
+  straighten_deg: number
+  lens_k1: number
+  perspective_vertical: number
+  crop: [number, number, number, number]
+}
+
+export interface LocalRecommendation {
+  photo_id: string
+  photo_revision: number
+  preset_id: string
+  preset_name: string
+  presets: Array<{ id: string; name: string }>
+  analysis_version: string
+  measurements: { luminance_p01: number; luminance_median: number; luminance_p99: number; geometry_note: string; white_balance_note: string }
+  settings: LocalSettings
+}
+
+export interface LocalJob {
+  id: string
+  photo_id: string
+  recipe_id: string
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
+  image_version_id: string | null
+  master_width: number | null
+  master_height: number | null
+  error: string | null
+  replacement_of_version_id: string | null
 }
 
 export interface EditJob {
@@ -79,10 +125,11 @@ export interface EditJob {
   created_at: string
   started_at: string | null
   completed_at: string | null
+  replacement_of_version_id: string | null
 }
 
 export interface EditPreview {
-  items: Array<{ photo_id: string; eligible: boolean; reason?: string; prompt_id?: string; prompt_version?: number; prompt_text?: string }>
+  items: Array<{ photo_id: string; eligible: boolean; reason?: string; prompt_id?: string; prompt_version?: number; prompt_text?: string; replacement_of_version_id?: string | null }>
   engine: 'DETERMINISTIC' | 'GENERATIVE'
   model: string | null
   estimated_cost_usd: string | null

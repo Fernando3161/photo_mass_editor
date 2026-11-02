@@ -52,14 +52,21 @@ def _approved(db: sqlite3.Connection, root: Path) -> list[dict]:
                   s.display_name AS subject,
                   v.id AS version_id, v.path, v.sha256 AS version_sha256,
                   v.width, v.height, v.mime, v.reviewed_at, v.job_id,
-                  v.publication_input_id, pi.source_hash AS input_source_hash,
+                  v.publication_input_id, v.local_job_id, pi.source_hash AS input_source_hash,
                   pi.publication_profile_id, j.status AS job_status,
                   j.image_version_id AS job_version_id, j.publication_input_id AS job_input_id,
-                  j.publication_input_hash AS job_input_hash
+                  j.publication_input_hash AS job_input_hash,
+                  lj.status AS local_status, lj.image_version_id AS local_version_id,
+                  lj.source_hash AS local_source_hash, lj.master_path, lj.master_sha256,
+                  lj.master_width, lj.master_height, lr.source_hash AS recipe_source_hash,
+                  lr.publication_profile_id AS recipe_profile_id,
+                  lr.profile_snapshot_json AS recipe_profile_snapshot
            FROM image_versions v JOIN photos p ON p.id=v.photo_id
            LEFT JOIN subjects s ON s.id=p.primary_subject_id
            LEFT JOIN publication_inputs pi ON pi.id=v.publication_input_id
            LEFT JOIN edit_jobs j ON j.id=v.job_id
+           LEFT JOIN local_jobs lj ON lj.id=v.local_job_id
+           LEFT JOIN local_recipes lr ON lr.id=lj.recipe_id
            WHERE v.review_status='APPROVED' ORDER BY p.id"""
     ).fetchall()
     profile = db.execute("SELECT * FROM publication_profiles WHERE id=?", (TARGET,)).fetchone()
@@ -71,18 +78,35 @@ def _approved(db: sqlite3.Connection, root: Path) -> list[dict]:
         source = Path(item["original_path"])
         if not source.is_file() or sha256(source) != item["source_sha256"]:
             raise ExportError(f"Original is missing or changed for photo {item['photo_id']}")
-        if (item["publication_profile_id"] != TARGET
-                or item["input_source_hash"] != item["source_sha256"]
-                or item["job_status"] != "SUCCEEDED"
-                or item["job_version_id"] != item["version_id"]
-                or item["job_input_id"] != item["publication_input_id"]):
-            raise ExportError(f"Approved version lacks valid website job provenance: {item['version_id']}")
-        try:
-            publication_input, _ = verify_publication_input(db, root, item["publication_input_id"])
-        except (OSError, ImageIntegrityError) as exc:
-            raise ExportError(f"Approved version publication input is missing or changed: {item['version_id']}") from exc
-        if publication_input["sha256"] != item["job_input_hash"]:
-            raise ExportError(f"Approved version job input hash differs: {item['version_id']}")
+        if item["local_job_id"]:
+            if (item["job_id"] or item["publication_input_id"]
+                    or item["local_status"] != "SUCCEEDED"
+                    or item["local_version_id"] != item["version_id"]
+                    or item["local_source_hash"] != item["source_sha256"]
+                    or item["recipe_source_hash"] != item["source_sha256"]
+                    or item["recipe_profile_id"] != TARGET
+                    or json.loads(item["recipe_profile_snapshot"]) != dict(profile)):
+                raise ExportError(f"Approved local version lacks valid recipe provenance: {item['version_id']}")
+            master = private_path(root, item["master_path"])
+            if not master.is_file() or sha256(master) != item["master_sha256"]:
+                raise ExportError(f"Approved local master is missing or changed: {item['version_id']}")
+            with Image.open(master) as image:
+                if (image.format != "PNG" or image.mode != "RGB"
+                        or image.size != (item["master_width"], item["master_height"])):
+                    raise ExportError(f"Approved local master violates its receipt: {item['version_id']}")
+        else:
+            if (item["publication_profile_id"] != TARGET
+                    or item["input_source_hash"] != item["source_sha256"]
+                    or item["job_status"] != "SUCCEEDED"
+                    or item["job_version_id"] != item["version_id"]
+                    or item["job_input_id"] != item["publication_input_id"]):
+                raise ExportError(f"Approved version lacks valid website job provenance: {item['version_id']}")
+            try:
+                publication_input, _ = verify_publication_input(db, root, item["publication_input_id"])
+            except (OSError, ImageIntegrityError) as exc:
+                raise ExportError(f"Approved version publication input is missing or changed: {item['version_id']}") from exc
+            if publication_input["sha256"] != item["job_input_hash"]:
+                raise ExportError(f"Approved version job input hash differs: {item['version_id']}")
         approved_event = db.execute(
             """SELECT 1 FROM review_events WHERE version_id=? AND actor='owner'
                AND previous_status='PENDING' AND next_status='APPROVED' LIMIT 1""",
@@ -94,7 +118,9 @@ def _approved(db: sqlite3.Connection, root: Path) -> list[dict]:
         if not path.is_file() or sha256(path) != item["version_sha256"]:
             raise ExportError(f"Approved version is missing or changed: {item['version_id']}")
         try:
-            size = validate_publication(path, dict(profile))
+            size = validate_publication(path, dict(profile),
+                                        (item["master_width"], item["master_height"])
+                                        if item["local_job_id"] else None)
         except (OSError, ImageIntegrityError) as exc:
             raise ExportError(f"Approved version violates website profile: {item['version_id']}") from exc
         if size != (item["width"], item["height"]) or item["mime"] != "image/jpeg":
@@ -267,6 +293,7 @@ def audit_artifacts(data_dir: Path) -> dict:
             ("masks", "path", "sha256"),
             ("image_versions", "path", "sha256"),
             ("edit_jobs", "raw_path", "raw_sha256"),
+            ("local_jobs", "master_path", "master_sha256"),
             ("export_items", "derivative_path", "derivative_sha256"),
             ("export_items", "thumbnail_path", "thumbnail_sha256"),
         ):

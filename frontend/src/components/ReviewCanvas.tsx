@@ -4,7 +4,7 @@ export function ReviewCanvas({ photo, version }: { photo: PhotoDetail; version: 
   return (
     <section className="compare-canvas" aria-label="Photo comparison">
       <article className="image-stage">
-        <header><span>Original</span><small>{photo.width} × {photo.height}</small></header>
+        <header><span>Original photo</span><small>{photo.width} × {photo.height}</small></header>
         <div className="image-well">
           <img src={photo.original_url} alt={`Original ${photo.original_filename}`} />
         </div>

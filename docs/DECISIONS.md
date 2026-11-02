@@ -82,6 +82,14 @@ The owner requested one-file Windows startup and access through the local IP. Th
 
 The owner requested free redistribution for noncommercial purposes. The release tree adopts the standard PolyForm Noncommercial 1.0.0 software license in place of GPLv2; it permits noncommercial use, modification, and distribution. The two explicitly public README photo previews use separate CC BY-NC 4.0 terms. NOTICE.md records the author and makes clear that earlier GPLv2 grants in history are not revoked. Alternative: CC BY-NC for all files; not chosen because Creative Commons advises against applying CC licenses to software itself. Commercial permission and publication rights remain owner decisions.
 
+## ADR-022 — Source-based local correction recipes (2026-11-02)
+
+The owner requested V2 Priority 1 before V1 release signoff. Local deterministic edits now use an independent versioned recipe and source-based full-resolution render, while generative edits retain prompt approval and publication-sized input. This removes prompt and paid-run controls from the local workflow. The recipe records a source hash, profile snapshot, measured recommendation, manual settings, and a job receipt; the output is a private PNG master plus a website JPEG. Conservative auto exposure, levels, white balance, shadows, and highlights are preloaded. Geometry is manual and neutral by default because no trustworthy horizon/lens-profile measurement is available. Float32 tonal calculations yield an 8-bit RGB master; higher bit depth and the real-photo performance/quality pilot remain open. Owner image review still controls export.
+
+## ADR-023 — Explicit approved-version replacement (2026-11-02)
+
+An approved version remains the publication choice until the owner explicitly creates and approves a replacement. Local and generative jobs store the exact approved version they target and fail if it changes before completion. The candidate begins PENDING. Final **Approve and replace current** runs in one transaction: the new version becomes APPROVED, the previous approval receives supersession metadata and is exposed as SUPERSEDED, and both immutable files and review events remain. Rejection leaves the prior approval active. The stored status of a superseded row uses the existing non-current `REJECTED` value plus explicit supersession fields, avoiding a destructive SQLite table rebuild while keeping the partial unique APPROVED index and existing export queries correct.
+
 ## Governance
 
 These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here. Development agents leave decision changes unstaged and uncommitted; the owner manually stages and commits them after review. Automatic commits are forbidden.

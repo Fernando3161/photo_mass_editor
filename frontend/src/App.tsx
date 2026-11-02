@@ -389,7 +389,7 @@ export default function App() {
       </header>
       <FilterBar filters={filters} onChange={setFilters} photos={photos} resultCount={filtered.length} onGrid={() => setGridOpen(true)} />
       <Filmstrip photos={filtered} selectedId={selectedId} onSelect={(id) => void selectPhoto(id)} />
-      <main className="workspace">
+      <main className={`workspace ${workspaceTab === 'editing' ? 'is-editing' : ''}`}>
         {photo && form ? <>
           <ReviewCanvas photo={photo} version={photo.versions.find((item) => item.id === selectedVersionId) || null} />
           <section className="work-area" aria-label="Work and editing area">
@@ -414,7 +414,7 @@ export default function App() {
             <div className="work-pane" role="tabpanel" id="pane-prompt" aria-labelledby="tab-prompt" hidden={workspaceTab !== 'prompt'}>
               <PromptPanel estimate={analysisEstimate} analysisAuthorized={analysisAuthorized} busy={phase3Busy} prompt={prompt} promptText={promptText} promptHistory={photo.prompt_history || []} onEstimate={() => void estimateCurrentAnalysis()} onAuthorized={setAnalysisAuthorized} onRunAnalysis={() => void runCurrentAnalysis()} onCompile={() => void compilePrompt()} onPromptText={setPromptText} onSavePrompt={() => void savePromptVersion()} onApprovePrompt={() => void approveCurrentPrompt()} />
             </div>
-            <div className="work-pane" role="tabpanel" id="pane-editing" aria-labelledby="tab-editing" hidden={workspaceTab !== 'editing'}>
+            <div className="work-pane work-pane-editing" role="tabpanel" id="pane-editing" aria-labelledby="tab-editing" hidden={workspaceTab !== 'editing'}>
               <EditPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} selectedVersionId={selectedVersionId} onSelectVersion={setSelectedVersionId} onBeforeRun={() => saveNow()} onRefresh={refreshCurrentPhoto} />
             </div>
             <div className="work-pane" role="tabpanel" id="pane-export" aria-labelledby="tab-export" hidden={workspaceTab !== 'export'}>

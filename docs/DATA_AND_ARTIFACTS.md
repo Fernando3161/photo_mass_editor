@@ -47,3 +47,9 @@ Server-side `OPENAI_API_KEY`, model, and planning amount are read from the proce
 
 ## Recovery
 Database backup and media-manifest checks should validate physical paths and hashes. Failed writes never assume successful version creation. An orphan scanner should identify missing/unreferenced media without deleting it automatically.
+
+## V2 Priority 1 local correction artifacts
+
+`local_recipes` stores an immutable per-photo version, source hash/revision, profile snapshot, analysis version, measurements, recommendation, and applied settings. `local_jobs` records queue status, request key, signature, source hash, master path/hash/dimensions, and resulting version. The full-resolution RGB PNG master lives under `data/catalog/edited/masters/`; the website JPEG is a separate immutable `edited/versions/` file derived from the corrected image without a lossy input JPEG. Both are private until an explicitly approved JPEG is copied into an export. A failed job can leave an unreferenced artifact for the read-only audit; never delete it automatically. Local processing uses float32 tonal math but currently writes an 8-bit master.
+
+Replacement jobs retain the ID of the approved version they were created to replace. Approval of the pending replacement keeps the prior image and master bytes, records its superseding version and time, and retains review events for both versions. The prior database review state becomes non-current while the API labels it `SUPERSEDED`; export continues to select only the single current `APPROVED` version.

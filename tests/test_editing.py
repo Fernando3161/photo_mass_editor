@@ -329,6 +329,34 @@ class EditingTests(unittest.TestCase):
             self.assertEqual(detail["versions"][0]["review_status"], "PENDING")
             self.assertEqual(client.get(detail["versions"][0]["image_url"]).status_code, 200)
 
+    def test_generative_path_records_explicit_replacement_target(self):
+        original_job = enqueue_batch(
+            self.data, [self.photo_id], "DETERMINISTIC", {}, self.editor,
+            authorized=True, budget_usd=None, request_key="replace-edit-001",
+        )[0]
+        original = run_job(self.data, original_job["id"], self.editor)
+        review_version(self.data, self.photo_id, original["image_version_id"], "APPROVED", None)
+        blocked = preview_batch(self.data, [self.photo_id], "GENERATIVE", self.editor)
+        self.assertFalse(blocked["items"][0]["eligible"])
+        preview = preview_batch(
+            self.data, [self.photo_id], "GENERATIVE", self.editor, replace_approved=True,
+        )
+        self.assertTrue(preview["items"][0]["eligible"])
+        self.assertEqual(preview["items"][0]["replacement_of_version_id"], original["image_version_id"])
+        queued = enqueue_batch(
+            self.data, [self.photo_id], "GENERATIVE", {}, self.editor,
+            authorized=True, budget_usd=Decimal("1"), request_key="replace-edit-002",
+            replace_approved=True,
+        )[0]
+        self.assertEqual(queued["replacement_of_version_id"], original["image_version_id"])
+        replacement = run_job(self.data, queued["id"], self.editor)
+        self.assertEqual(replacement["status"], "SUCCEEDED", replacement["error"])
+        promoted = review_version(
+            self.data, self.photo_id, replacement["image_version_id"], "APPROVED", None,
+            replace_approved=True,
+        )
+        self.assertEqual(promoted["review_status"], "APPROVED")
+
 
 if __name__ == "__main__":
     unittest.main()

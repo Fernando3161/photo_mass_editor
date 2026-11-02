@@ -81,13 +81,26 @@ def _photo(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
         "saved_at": None,
     }
     versions = db.execute(
-        """SELECT id, version_number, review_status, created_at, width, height,
-                  reviewed_at, rejection_reason
-           FROM image_versions WHERE photo_id = ? ORDER BY version_number""",
+        """SELECT v.id, v.version_number, v.review_status, v.created_at, v.width, v.height,
+                  v.reviewed_at, v.rejection_reason, v.local_job_id, v.superseded_by_version_id,
+                  v.superseded_at, j.engine AS legacy_engine,
+                  COALESCE(l.replacement_of_version_id,j.replacement_of_version_id) AS replacement_of_version_id
+           FROM image_versions v LEFT JOIN edit_jobs j ON j.id=v.job_id
+           LEFT JOIN local_jobs l ON l.id=v.local_job_id
+           WHERE v.photo_id = ? ORDER BY v.version_number""",
         (photo_id,),
     ).fetchall()
-    item["versions"] = [dict(version) | {"image_url": f"/api/photos/{photo_id}/versions/{version['id']}/image"}
-                        for version in versions]
+    item["versions"] = [
+        {key: version[key] for key in ("id", "version_number", "created_at", "width", "height",
+                                       "reviewed_at", "rejection_reason", "superseded_by_version_id",
+                                       "superseded_at", "replacement_of_version_id")}
+        | {"review_status": "SUPERSEDED" if version["superseded_by_version_id"] else version["review_status"]}
+        | {"image_url": f"/api/photos/{photo_id}/versions/{version['id']}/image",
+           "master_url": (f"/api/photos/{photo_id}/versions/{version['id']}/master"
+                          if version["local_job_id"] else None),
+           "engine": "DETERMINISTIC" if version["local_job_id"] else version["legacy_engine"]}
+        for version in versions
+    ]
     from .prompts import prompt_history
     item["prompt_history"] = prompt_history(db, photo_id)
     return item

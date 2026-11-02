@@ -48,3 +48,7 @@ Branch: `dev/v1-phase-07-release-cleanup`, from the committed Phase 06 baseline.
 
 ## Phase reviews
 Every phase report records the branch and baseline commit, notes that new changes await the owner's manual commit, and records changed files, acceptance PASS/FAIL/NOT_RUN, evidence, test commands, risks, deferred heavy operations, and next-phase recommendation. Block progression on unresolved original integrity or privacy problems.
+
+## V2 follow-on work
+
+The owner requested Priority 1 implementation before final V1 release signoff. The separate [V2 project plan](V2_PROJECT_PLAN.md) defines priorities and gates; [V2 Priority 1 review](V2_PHASE_01_REVIEW.md) and its [technical report](../reports/V2_PHASE_01_TECHNICAL_REPORT.md) describe the current local correction branch. Later priorities remain planning only until owner review.

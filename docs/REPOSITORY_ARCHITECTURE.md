@@ -11,6 +11,7 @@ backend/review/{analysis,analysis_service,prompts}.py  # Phase 03 boundaries
 backend/review/{image_pipeline,editing,openai_edit}.py # Phase 04 boundaries
 backend/review/{local_model,catalog_prefill}.py         # Phase 05 boundaries
 backend/review/{export,export_cli}.py                   # Phase 06 boundaries
+backend/review/local_corrections.py                     # V2 Priority 1 recipes and full-resolution masters
 frontend/src/
 prompts/{presets,system}/
 tests/
@@ -34,6 +35,7 @@ Image ingestion, AI observation, prompt compilation, publication-input derivatio
 
 ## Domain lifecycle
 Original photo -> import/checksum/metadata -> optional local recognition and city suggestions -> human review of classification/location/preset/publication profile/instructions -> compile and inspect final prompt -> deterministic publication input -> authorized job/raw attempt -> validated publication version -> visual compare -> approve/reject -> approved-only export.
+V2 local correction branches after catalog review: source hash and recipe recommendation -> owner-adjustable settings -> receipt and full-resolution PNG master -> separate website JPEG -> explicit visual approval -> approved-only export. The prompt and publication-input steps remain exclusive to generative editing.
 A batch is a saved selection/filter and job group; it does not own source identity.
 
 ## Operational considerations

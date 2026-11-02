@@ -58,7 +58,10 @@ def save_mask(data_dir: Path, photo_id: str, payload: bytes) -> dict:
         raise EditConflict("Mask must be a nonempty PNG smaller than 4 MB")
     db = connect(data_dir)
     try:
-        prompt, profile = _eligible(db, photo_id)
+        has_approved = db.execute(
+            "SELECT 1 FROM image_versions WHERE photo_id=? AND review_status='APPROVED'", (photo_id,)
+        ).fetchone() is not None
+        prompt, profile, _ = _eligible(db, photo_id, has_approved)
         artifact = ensure_publication_input(db, data_dir, photo_id, profile)
         with Image.open(BytesIO(payload)) as image:
             image.load()
@@ -95,7 +98,8 @@ def _profile(db: sqlite3.Connection, prompt: sqlite3.Row) -> dict:
     return saved
 
 
-def _eligible(db: sqlite3.Connection, photo_id: str) -> tuple[sqlite3.Row, dict]:
+def _eligible(db: sqlite3.Connection, photo_id: str,
+              replace_approved: bool = False) -> tuple[sqlite3.Row, dict, str | None]:
     prompt = db.execute(
         """SELECT cp.* FROM compiled_prompts cp JOIN review_drafts d ON d.photo_id=cp.photo_id
            JOIN photos p ON p.id=cp.photo_id
@@ -109,14 +113,16 @@ def _eligible(db: sqlite3.Connection, photo_id: str) -> tuple[sqlite3.Row, dict]
     approved = db.execute(
         "SELECT id FROM image_versions WHERE photo_id=? AND review_status='APPROVED'", (photo_id,)
     ).fetchone()
-    if approved:
+    if approved and not replace_approved:
         raise EditConflict("Photo already has an approved version")
+    if replace_approved and not approved:
+        raise EditConflict("No approved version exists to replace")
     active = db.execute(
         "SELECT id FROM edit_jobs WHERE photo_id=? AND status IN ('QUEUED','RUNNING')", (photo_id,)
     ).fetchone()
     if active:
         raise EditConflict("Photo already has an active edit job")
-    return prompt, _profile(db, prompt)
+    return prompt, _profile(db, prompt), approved["id"] if approved else None
 
 
 def _settings(engine: str, settings: dict) -> dict:
@@ -144,7 +150,7 @@ def _signature(prompt_id: str, input_hash: str, engine: str, model: str | None, 
 
 def preview_batch(data_dir: Path, photo_ids: list[str], engine: str, provider: EditProvider,
                   settings: dict | None = None, mask_id: str | None = None,
-                  retry_override: bool = False) -> dict:
+                  retry_override: bool = False, replace_approved: bool = False) -> dict:
     if not 1 <= len(photo_ids) <= 20 or len(set(photo_ids)) != len(photo_ids):
         raise EditConflict("Choose 1 to 20 distinct photos")
     settings = _settings(engine, settings or {})
@@ -153,7 +159,7 @@ def preview_batch(data_dir: Path, photo_ids: list[str], engine: str, provider: E
         items = []
         for photo_id in photo_ids:
             try:
-                prompt, profile = _eligible(db, photo_id)
+                prompt, profile, replacement_id = _eligible(db, photo_id, replace_approved)
                 source = db.execute("SELECT original_path,sha256 FROM photos WHERE id=?", (photo_id,)).fetchone()
                 if source is None or not Path(source["original_path"]).is_file() or sha256(Path(source["original_path"])) != source["sha256"]:
                     raise EditConflict("Original photograph is missing or changed")
@@ -175,14 +181,16 @@ def preview_batch(data_dir: Path, photo_ids: list[str], engine: str, provider: E
                                            provider.model if engine == "GENERATIVE" else None, settings, mask_hash)
                     rejected = db.execute(
                         """SELECT j.id FROM edit_jobs j JOIN image_versions v ON v.id=j.image_version_id
-                           WHERE j.photo_id=? AND j.signature=? AND v.review_status='REJECTED'""",
+                           WHERE j.photo_id=? AND j.signature=? AND v.review_status='REJECTED'
+                             AND v.superseded_by_version_id IS NULL""",
                         (photo_id, signature),
                     ).fetchone()
                     if rejected and not retry_override:
                         raise EditConflict("Identical rejected attempt requires changed instructions or explicit retry override")
                 items.append({"photo_id": photo_id, "eligible": True,
                               "prompt_id": prompt["id"], "prompt_version": prompt["version_number"],
-                              "prompt_text": prompt["compiled_text"], "profile": profile})
+                              "prompt_text": prompt["compiled_text"], "profile": profile,
+                              "replacement_of_version_id": replacement_id})
             except EditConflict as exc:
                 items.append({"photo_id": photo_id, "eligible": False, "reason": str(exc)})
         estimate = provider.estimated_cost_usd if engine == "GENERATIVE" else Decimal("0")
@@ -200,7 +208,8 @@ def preview_batch(data_dir: Path, photo_ids: list[str], engine: str, provider: E
 
 def enqueue_batch(data_dir: Path, photo_ids: list[str], engine: str, settings: dict,
                   provider: EditProvider, *, authorized: bool, budget_usd: Decimal | None,
-                  request_key: str, retry_override: bool = False, mask_id: str | None = None) -> list[dict]:
+                  request_key: str, retry_override: bool = False, mask_id: str | None = None,
+                  replace_approved: bool = False) -> list[dict]:
     if not authorized:
         raise PermissionError("Authorize this edit run explicitly")
     if not 1 <= len(photo_ids) <= 20 or len(set(photo_ids)) != len(photo_ids):
@@ -227,7 +236,9 @@ def enqueue_batch(data_dir: Path, photo_ids: list[str], engine: str, settings: d
         if existing:
             if ({row["photo_id"] for row in existing} != set(photo_ids)
                     or any(row["engine"] != engine or json.loads(row["settings_json"]) != settings
-                           or row["mask_id"] != mask_id for row in existing)):
+                           or row["mask_id"] != mask_id
+                           or bool(row["replacement_of_version_id"]) != replace_approved
+                           for row in existing)):
                 raise EditConflict("Request key was used for different edit inputs")
             db.commit()
             return [_public_job(row) for row in existing]
@@ -241,7 +252,7 @@ def enqueue_batch(data_dir: Path, photo_ids: list[str], engine: str, settings: d
         )
         jobs = []
         for photo_id in photo_ids:
-            prompt, profile = _eligible(db, photo_id)
+            prompt, profile, replacement_id = _eligible(db, photo_id, replace_approved)
             artifact = ensure_publication_input(db, data_dir, photo_id, profile)
             selected_mask = None
             mask_hash = None
@@ -260,7 +271,8 @@ def enqueue_batch(data_dir: Path, photo_ids: list[str], engine: str, settings: d
             signature = _signature(prompt["id"], artifact["sha256"], engine, model, settings, mask_hash)
             rejected = db.execute(
                 """SELECT j.id FROM edit_jobs j JOIN image_versions v ON v.id=j.image_version_id
-                   WHERE j.photo_id=? AND j.signature=? AND v.review_status='REJECTED'""",
+                   WHERE j.photo_id=? AND j.signature=? AND v.review_status='REJECTED'
+                     AND v.superseded_by_version_id IS NULL""",
                 (photo_id, signature),
             ).fetchone()
             if rejected and not retry_override:
@@ -268,12 +280,13 @@ def enqueue_batch(data_dir: Path, photo_ids: list[str], engine: str, settings: d
             job_id = str(uuid4())
             db.execute(
                 """INSERT INTO edit_jobs(id,batch_id,photo_id,compiled_prompt_id,publication_input_id,
-                   publication_input_hash,engine,model,settings_json,mask_id,signature,request_key,status,
+                   publication_input_hash,engine,model,settings_json,mask_id,signature,request_key,
+                   replacement_of_version_id,status,
                    estimated_cost_usd,authorized_at,created_at)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (job_id, batch_id, photo_id, prompt["id"], artifact["id"], artifact["sha256"],
                  engine, model, json.dumps(settings, sort_keys=True), mask_id, signature,
-                 request_key + ":" + photo_id, "QUEUED",
+                 request_key + ":" + photo_id, replacement_id, "QUEUED",
                  float(provider.estimated_cost_usd) if engine == "GENERATIVE" else 0.0, now, now),
             )
             jobs.append(job_id)
@@ -305,6 +318,7 @@ def _public_job(row: dict) -> dict:
     item = {key: row[key] for key in (
         "id", "batch_id", "photo_id", "compiled_prompt_id", "engine", "model", "status", "error",
         "image_version_id", "estimated_cost_usd", "actual_cost_usd", "created_at", "started_at", "completed_at",
+        "replacement_of_version_id",
     )}
     if item["error"]:
         item["error"] = "Edit failed; inspect the private SQLite job receipt before retrying"
@@ -368,6 +382,15 @@ def run_job(data_dir: Path, job_id: str, provider: EditProvider) -> dict:
                 or not Path(current["original_path"]).is_file()
                 or sha256(Path(current["original_path"])) != input_item["source_hash"]):
             raise ImageIntegrityError("Photo or approved prompt changed after job was queued")
+        approved = db.execute(
+            "SELECT id FROM image_versions WHERE photo_id=? AND review_status='APPROVED'",
+            (row["photo_id"],),
+        ).fetchone()
+        if row["replacement_of_version_id"]:
+            if approved is None or approved["id"] != row["replacement_of_version_id"]:
+                raise EditConflict("The approved version changed while the replacement ran")
+        elif approved:
+            raise EditConflict("Photo was approved while the edit ran")
         mask = None
         if row["mask_id"]:
             mask_record = db.execute("SELECT * FROM masks WHERE id=?", (row["mask_id"],)).fetchone()
@@ -394,6 +417,15 @@ def run_job(data_dir: Path, job_id: str, provider: EditProvider) -> dict:
         )
         version_id = str(uuid4())
         db.execute("BEGIN IMMEDIATE")
+        final_approved = db.execute(
+            "SELECT id FROM image_versions WHERE photo_id=? AND review_status='APPROVED'",
+            (row["photo_id"],),
+        ).fetchone()
+        if row["replacement_of_version_id"]:
+            if final_approved is None or final_approved["id"] != row["replacement_of_version_id"]:
+                raise EditConflict("The approved version changed while the replacement ran")
+        elif final_approved:
+            raise EditConflict("Photo was approved while the edit ran")
         number = db.execute(
             "SELECT COALESCE(MAX(version_number),0)+1 FROM image_versions WHERE photo_id=?", (row["photo_id"],)
         ).fetchone()[0]
@@ -478,7 +510,8 @@ def recover_jobs(data_dir: Path, provider: EditProvider, executor: ThreadPoolExe
         executor.submit(run_job, data_dir, job_id, provider)
 
 
-def review_version(data_dir: Path, photo_id: str, version_id: str, decision: str, reason: str | None) -> dict:
+def review_version(data_dir: Path, photo_id: str, version_id: str, decision: str,
+                   reason: str | None, replace_approved: bool = False) -> dict:
     if decision not in ("APPROVED", "REJECTED"):
         raise EditConflict("Review decision must be APPROVED or REJECTED")
     db = connect(data_dir)
@@ -491,19 +524,50 @@ def review_version(data_dir: Path, photo_id: str, version_id: str, decision: str
             raise KeyError(version_id)
         if version["review_status"] != "PENDING":
             raise EditConflict("Only pending versions can be reviewed")
-        if version["job_id"] is None:
-            raise EditConflict("Version has no completed edit job")
-        job = db.execute("SELECT status FROM edit_jobs WHERE id=?", (version["job_id"],)).fetchone()
-        if job is None or job["status"] != "SUCCEEDED":
-            raise EditConflict("Version job did not succeed")
+        replacement_id = None
+        if version["local_job_id"]:
+            job = db.execute("SELECT status,master_path,master_sha256,replacement_of_version_id FROM local_jobs WHERE id=?",
+                             (version["local_job_id"],)).fetchone()
+            if job is None or job["status"] != "SUCCEEDED":
+                raise EditConflict("Local correction did not succeed")
+            master = private_path(data_dir, job["master_path"])
+            if not master.is_file() or sha256(master) != job["master_sha256"]:
+                raise ImageIntegrityError("Full-resolution master is missing or changed")
+            replacement_id = job["replacement_of_version_id"]
+        else:
+            if version["job_id"] is None:
+                raise EditConflict("Version has no completed edit job")
+            job = db.execute("SELECT status,replacement_of_version_id FROM edit_jobs WHERE id=?", (version["job_id"],)).fetchone()
+            if job is None or job["status"] != "SUCCEEDED":
+                raise EditConflict("Version job did not succeed")
+            replacement_id = job["replacement_of_version_id"]
         path = private_path(data_dir, version["path"])
         if not path.is_file() or sha256(path) != version["sha256"]:
             raise ImageIntegrityError("Version file is missing or changed")
-        if decision == "APPROVED" and db.execute(
-            "SELECT id FROM image_versions WHERE photo_id=? AND review_status='APPROVED'", (photo_id,)
-        ).fetchone():
-            raise EditConflict("An approved version already exists; explicit promotion is not yet available")
+        current_approved = db.execute(
+            "SELECT id,version_number FROM image_versions WHERE photo_id=? AND review_status='APPROVED'",
+            (photo_id,),
+        ).fetchone()
+        if decision == "APPROVED" and replacement_id:
+            if not replace_approved:
+                raise EditConflict("Approve this version with explicit replacement confirmation")
+            if current_approved is None or replacement_id != current_approved["id"]:
+                raise EditConflict("This version was not created as a replacement for the current approval")
+        elif decision == "APPROVED" and current_approved:
+            raise EditConflict("This version was not created as a replacement for the current approval")
         now = utc_now()
+        if decision == "APPROVED" and current_approved:
+            db.execute(
+                """UPDATE image_versions SET review_status='REJECTED',rejection_reason=NULL,
+                   superseded_by_version_id=?,superseded_at=? WHERE id=? AND review_status='APPROVED'""",
+                (version_id, now, current_approved["id"]),
+            )
+            db.execute(
+                """INSERT INTO review_events(id,version_id,actor,reviewed_at,previous_status,next_status,note)
+                   VALUES (?,?,?,?,'APPROVED','REJECTED',?)""",
+                (str(uuid4()), current_approved["id"], "owner", now,
+                 f"Superseded by approved version {version['version_number']}"),
+            )
         db.execute(
             "UPDATE image_versions SET review_status=?,reviewed_at=?,rejection_reason=? WHERE id=?",
             (decision, now, reason.strip() if decision == "REJECTED" and reason else None, version_id),
@@ -514,7 +578,11 @@ def review_version(data_dir: Path, photo_id: str, version_id: str, decision: str
             (str(uuid4()), version_id, "owner", now, decision, reason.strip() if reason else None),
         )
         db.commit()
-        return dict(db.execute("SELECT id,photo_id,version_number,review_status,reviewed_at,rejection_reason FROM image_versions WHERE id=?", (version_id,)).fetchone())
+        return dict(db.execute(
+            """SELECT id,photo_id,version_number,review_status,reviewed_at,rejection_reason,
+                      superseded_by_version_id,superseded_at FROM image_versions WHERE id=?""",
+            (version_id,),
+        ).fetchone())
     except Exception:
         db.rollback()
         raise
