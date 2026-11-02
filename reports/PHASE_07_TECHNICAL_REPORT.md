@@ -2,7 +2,7 @@
 
 - Branch: dev/v1-phase-07-release-cleanup
 - Baseline: 1739ac6, the committed Phase 06 branch head on 2026-11-01
-- Working tree: all changes unstaged and uncommitted for owner review; no merge or release performed
+- Phase 07 implementation was committed by the owner at `a237a72` before V1 release preparation. On 2026-11-02 the owner expressly delegated the V1 release-preparation commit and push. Merge, tag, and publication remain subject to the owner acceptance below.
 - Owner acceptance: pending final diff, example-image/publication-rights review, and completion of the Phase 06 real-export visual gate
 
 ## Scope and changes
@@ -52,4 +52,10 @@ No paid provider call, model prefetch, large-batch edit, cloud upload, data-fold
 
 ## Handoff and risks
 
-The launcher exposes HTTP Basic authentication on the private LAN; credentials and photos are observable to someone who can monitor that network. The manual loopback server remains unauthenticated. A real original served to an authenticated browser can contain EXIF. Owner review of source image content, license rights, real exports, and final staged files remains mandatory. Do not merge until the owner accepts the Phase 06/07 visual and publication checks. Only the owner stages and commits.
+The launcher exposes HTTP Basic authentication on the private LAN; credentials and photos are observable to someone who can monitor that network. The manual loopback server remains unauthenticated. A real original served to an authenticated browser can contain EXIF. Owner review of source image content, license rights, real exports, and final staged files remains mandatory. Do not merge until the owner accepts the Phase 06/07 visual and publication checks. The owner expressly delegated the V1 release-preparation commit and push on 2026-11-02; this does not itself establish visual or publication-rights acceptance.
+
+## V1 release preparation on 2026-11-02
+
+The independent evaluation `CRITICAL_EVALUATION_2026-11-02.local.md` was reviewed privately and remains ignored by Git. `frontend/package.json` and its lockfile now agree on version 1.0.0. The README links to V1 release notes that disclose current limitations; a separate V2 plan is prepared outside the V1 release commit. No editing behavior or dependencies changed.
+
+Verification: the repository `.venv` interpreter was checked against `sys.prefix`; `.venv\Scripts\python.exe -m unittest discover -s tests -q` passed 63 tests; `npm --prefix frontend test -- --reporter=dot` passed 15 tests after the version update; `npm --prefix frontend run build` passed after the version update. The two public examples were inspected at 960 × 720 with zero EXIF entries, and visually compared as the intended before/after pair. `git diff --check` found no whitespace errors, only Windows line-ending notices. No paid call, model download, image batch, or live export was run. Remote Windows/Linux CI, clean-clone setup, the real export visual gate, and owner publication-rights review are still not recorded as passed.

@@ -2,6 +2,8 @@
 
 A local photography catalog, review workstation, and controlled editing pipeline. Originals stay unchanged. Every edit is a separate version; only an image you explicitly approve can enter a website collection.
 
+Current release: **V1.0.0**. See [release notes and known limits](docs/V1_RELEASE_NOTES.md).
+
 | Original photo | Owner-approved generative edit |
 | :---: | :---: |
 | ![Original Budapest Opera House photograph](docs/assets/opera-house-before.jpg) | ![Edited Budapest Opera House photograph](docs/assets/opera-house-after.jpg) |
