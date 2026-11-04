@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
-import type { ImageVersion, PhotoDetail, PhotoSummary } from '../types'
+import type { ImageVersion, PhotoDetail, PhotoSummary, PromptRefinement } from '../types'
 
 const summaries: PhotoSummary[] = [
   { id: 'one', original_filename: 'first.jpg', width: 1200, height: 800, capture_datetime_raw: '2024:01:01 10:00:00', camera: 'Test Camera', city: null, country: null, review_state: 'UNREVIEWED', revision: 0, primary_subject: null, thumbnail_url: '/api/photos/one/thumbnail', tags: [] },
@@ -23,7 +23,7 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: {
   batchGate?: Promise<void>
   versions?: ImageVersion[]
   localPreview?: (body: { settings: Record<string, number | number[]> }) => Promise<Response>
-}) {
+}, refinements: PromptRefinement[] = []) {
   let catalog = structuredClone(summaries)
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -63,6 +63,10 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: {
     if (url.endsWith('/local-edits')) return Response.json({ jobs: [] })
     if (url.endsWith('/edits')) return Response.json({ jobs: [], versions: edit?.versions || [] })
     if (url === '/api/photos/one/prompts/compile' && init?.method === 'POST') return Response.json({ id: 'prompt-1', photo_id: 'one', version_number: 1, parent_prompt_id: null, compiled_text: 'Preserve documentary authenticity.', user_modified: 0, approved_for_job: 0, generated_at: 'now', approved_at: null, input_snapshot: {}, publication_profile_id: 'website-standard-v1', publication_profile_snapshot: {} })
+    if (url.endsWith('/prompt-refinements') && !init) return Response.json(refinements)
+    if (url === '/api/prompts/prompt-1/refinement/estimate' && init?.method === 'POST') return Response.json({ prompt_id: 'prompt-1', provider: 'fake', model: 'fake-text', template_version: 'test', estimated_cost_usd: '0.001', note: 'Planning only.' })
+    if (url === '/api/prompts/prompt-1/refinement/run' && init?.method === 'POST') return Response.json({ id: 'proposal-1', photo_id: 'one', base_prompt_id: 'prompt-1', provider: 'fake', model: 'fake-text', template_version: 'test', proposed_text: 'Preserve documentary authenticity. Improve clarity.', adoption_text: 'Preserve documentary authenticity. Improve clarity.\nRequired source rule.', restored_requirements: 1, status: 'SUCCEEDED', estimated_cost_usd: 0.001, actual_cost_usd: null, error: null, created_at: 'now' })
+    if (url === '/api/prompt-refinements/proposal-1/adopt' && init?.method === 'POST') return Response.json({ id: 'prompt-2', photo_id: 'one', version_number: 2, parent_prompt_id: 'prompt-1', refinement_id: 'proposal-1', compiled_text: JSON.parse(String(init.body)).compiled_text, user_modified: 1, approved_for_job: 0, generated_at: 'now', approved_at: null, input_snapshot: {}, publication_profile_id: 'website-standard-v1', publication_profile_snapshot: {} })
     if (url === '/api/edit/preview' && init?.method === 'POST') return Response.json(edit?.preview || { items: [{ photo_id: 'one', eligible: true, prompt_version: 1, prompt_text: 'Preserve documentary authenticity.' }], engine: 'DETERMINISTIC', model: null, estimated_cost_usd: '0', cost_note: 'Local', availability: 'ready' })
     if (url === '/api/edit/batches' && init?.method === 'POST') {
       if (edit?.batchGate) await edit.batchGate
@@ -90,6 +94,45 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: {
 describe('review workstation', () => {
   beforeEach(() => vi.useRealTimers())
   afterEach(() => vi.unstubAllGlobals())
+
+  it('keeps text refinement separate from prompt and image approval', async () => {
+    const fetchMock = mockFetch()
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByText('first.jpg')
+    await user.click(screen.getByRole('tab', { name: 'Analysis and prompt' }))
+    await user.click(screen.getByRole('button', { name: 'Compile prompt preview' }))
+    await screen.findByText('Version 1 · Pending approval')
+    await user.click(screen.getByRole('button', { name: 'Preview text cost' }))
+    expect(await screen.findByText(/planning estimate \$0.001/)).toBeTruthy()
+    const requestButton = screen.getByRole('button', { name: 'Request proposal' }) as HTMLButtonElement
+    expect(requestButton.disabled).toBe(true)
+    await user.click(screen.getByLabelText('I authorize this paid text request'))
+    await user.click(requestButton)
+    expect(await screen.findByText('Preserve documentary authenticity. Improve clarity.')).toBeTruthy()
+    expect(screen.getByText(/1 required preservation or profile rule/)).toBeTruthy()
+    expect((screen.getByRole('textbox', { name: 'Adoption draft (editable)' }) as HTMLTextAreaElement).value).toContain('Required source rule.')
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/prompt-refinements/proposal-1/adopt', expect.anything())
+    await user.click(screen.getByRole('button', { name: 'Adopt as new version' }))
+    const adoptionCall = fetchMock.mock.calls.find(([url]) => String(url) === '/api/prompt-refinements/proposal-1/adopt')
+    expect(JSON.parse(String(adoptionCall?.[1]?.body)).compiled_text).toContain('Required source rule.')
+    await screen.findByText('Version 2 · Pending approval')
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/prompts/prompt-2/approve', expect.anything())
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/edit/batches', expect.anything())
+  })
+
+  it('reopens a saved proposal from refinement history', async () => {
+    const proposal: PromptRefinement = { id: 'proposal-1', photo_id: 'one', base_prompt_id: 'prompt-1', provider: 'fake', model: 'fake-text', template_version: 'test', proposed_text: 'Original AI proposal.', adoption_text: 'Original AI proposal.\nRequired source rule.', restored_requirements: 1, status: 'SUCCEEDED', estimated_cost_usd: 0.001, actual_cost_usd: null, error: null, created_at: 'now' }
+    mockFetch(false, undefined, undefined, [proposal])
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByText('first.jpg')
+    await user.click(screen.getByRole('tab', { name: 'Analysis and prompt' }))
+    await user.click(screen.getByText('Refinement history (1)'))
+    await user.click(screen.getByRole('button', { name: 'Review proposal' }))
+    expect(screen.getByText('Original AI proposal.')).toBeTruthy()
+    expect((screen.getByRole('textbox', { name: 'Adoption draft (editable)' }) as HTMLTextAreaElement).value).toContain('Required source rule.')
+  })
 
   it('requires an approved collection preview and explicit export authorization', async () => {
     const fetchMock = mockFetch()
@@ -250,7 +293,7 @@ describe('review workstation', () => {
     await user.type(country, 'Hun')
     await user.keyboard('{Tab}')
     expect(country.value).toBe('Hungary')
-  })
+  }, 10000)
 
   it('uses a 0.10 USD default budget for a single eligible paid edit', async () => {
     const fetchMock = mockFetch(false, undefined, { preview: {

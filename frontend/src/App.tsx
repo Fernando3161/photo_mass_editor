@@ -9,7 +9,7 @@ import { EditPanel } from './components/EditPanel'
 import { ReviewCanvas } from './components/ReviewCanvas'
 import { CatalogPrefillPanel } from './components/CatalogPrefillPanel'
 import { ExportPanel } from './components/ExportPanel'
-import type { AnalysisEstimate, CompiledPrompt, Options, PhotoDetail, PhotoSummary, Preset, ReviewForm, ReviewState, SavePayload } from './types'
+import type { AnalysisEstimate, CompiledPrompt, Options, PhotoDetail, PhotoSummary, Preset, ReviewForm, ReviewState, SavePayload, RefinementEstimate, PromptRefinement } from './types'
 import './styles.css'
 
 type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'error' | 'recovered'
@@ -75,6 +75,11 @@ export default function App() {
   const [phase3Busy, setPhase3Busy] = useState(false)
   const [prompt, setPrompt] = useState<CompiledPrompt | null>(null)
   const [promptText, setPromptText] = useState('')
+  const [refinementEstimate, setRefinementEstimate] = useState<RefinementEstimate | null>(null)
+  const [refinementAuthorized, setRefinementAuthorized] = useState(false)
+  const [refinement, setRefinement] = useState<PromptRefinement | null>(null)
+  const [refinementText, setRefinementText] = useState('')
+  const [refinementHistory, setRefinementHistory] = useState<PromptRefinement[]>([])
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null)
   const editGeneration = useRef(0)
   const formRef = useRef<ReviewForm | null>(null)
@@ -122,6 +127,13 @@ export default function App() {
       setPromptText(latestPrompt?.compiled_text || '')
       setAnalysisEstimate(null)
       setAnalysisAuthorized(false)
+      setRefinementEstimate(null)
+      setRefinementAuthorized(false)
+      setRefinement(null)
+      setRefinementText('')
+      void api.getRefinements(loaded.id).then((items) => {
+        if (active) setRefinementHistory(items)
+      }).catch(() => { if (active) setRefinementHistory([]) })
       formRef.current = nextForm
       editGeneration.current = 0
       setError('')
@@ -157,7 +169,7 @@ export default function App() {
 
   const filtered = useMemo(() => photos.filter((item) => {
     const query = filters.query.toLowerCase()
-    const haystack = [item.original_filename, item.primary_subject, item.city, item.country, ...item.tags.map((tag) => tag.display_name)].filter(Boolean).join(' ').toLowerCase()
+    const haystack = [item.original_filename, item.primary_subject, item.city, item.country, ...item.tags.map((tag) => tag.display_name), ...(item.suggested_search_terms || [])].filter(Boolean).join(' ').toLowerCase()
     return (!query || haystack.includes(query))
       && (filters.state === 'ALL' || item.review_state === filters.state)
       && (!filters.subject || item.primary_subject === filters.subject)
@@ -341,6 +353,9 @@ export default function App() {
       const compiled = await api.compilePrompt(photo.id)
       setPrompt(compiled)
       setPromptText(compiled.compiled_text)
+      setRefinementEstimate(null)
+      setRefinement(null)
+      setRefinementText('')
       setPhoto((current) => current ? { ...current, prompt_history: [compiled, ...current.prompt_history] } : current)
       setError('')
     } catch (reason) {
@@ -356,6 +371,9 @@ export default function App() {
       const revised = await api.revisePrompt(prompt.id, promptText)
       setPrompt(revised)
       setPromptText(revised.compiled_text)
+      setRefinementEstimate(null)
+      setRefinement(null)
+      setRefinementText('')
       setPhoto((current) => current ? { ...current, prompt_history: [revised, ...current.prompt_history] } : current)
       setError('')
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Prompt save failed') }
@@ -374,6 +392,56 @@ export default function App() {
       const conflicts = (reason as Error & { conflicts?: string[] }).conflicts
       setError(conflicts?.join(' · ') || (reason instanceof Error ? reason.message : 'Prompt approval failed'))
     } finally { setPhase3Busy(false) }
+  }
+
+  const estimateCurrentRefinement = async () => {
+    if (!prompt || promptText !== prompt.compiled_text || !(await saveNow())) return
+    setPhase3Busy(true)
+    try {
+      setRefinementEstimate(await api.estimateRefinement(prompt.id))
+      setError('')
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Refinement estimate failed') }
+    finally { setPhase3Busy(false) }
+  }
+
+  const runCurrentRefinement = async () => {
+    if (!prompt || !refinementEstimate || !refinementAuthorized || promptText !== prompt.compiled_text ||
+        prompt.id !== refinementEstimate.prompt_id || !(await saveNow())) return
+    setPhase3Busy(true)
+    try {
+      const proposal = await api.runRefinement(prompt.id, refinementEstimate.estimated_cost_usd)
+      setRefinement(proposal)
+      setRefinementText(proposal.adoption_text || proposal.proposed_text || '')
+      setRefinementHistory((current) => [proposal, ...current])
+      setRefinementAuthorized(false)
+      setRefinementEstimate(null)
+      setError('')
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Refinement failed') }
+    finally { setPhase3Busy(false) }
+  }
+
+  const adoptCurrentRefinement = async () => {
+    if (!refinement || !refinementText.trim()) return
+    setPhase3Busy(true)
+    try {
+      const revised = await api.adoptRefinement(refinement.id, refinementText)
+      setPrompt(revised)
+      setPromptText(revised.compiled_text)
+      setPhoto((current) => current ? { ...current, prompt_history: [revised, ...current.prompt_history] } : current)
+      setRefinement(null)
+      setRefinementText('')
+      setError('')
+    } catch (reason) {
+      const conflicts = (reason as Error & { conflicts?: string[] }).conflicts
+      setError(conflicts?.join(' · ') || (reason instanceof Error ? reason.message : 'Proposal could not be adopted'))
+    }
+    finally { setPhase3Busy(false) }
+  }
+
+  const reviewRefinement = (item: PromptRefinement) => {
+    setRefinement(item)
+    setRefinementText(item.adoption_text || item.proposed_text || '')
+    setError('')
   }
 
   const statusText = saveStatus === 'saved' ? 'All changes saved' : saveStatus === 'saving' ? 'Saving changes…' : saveStatus === 'error' ? 'Save failed — draft kept locally' : saveStatus === 'recovered' ? 'Unsaved draft recovered' : 'Unsaved changes'
@@ -414,7 +482,7 @@ export default function App() {
               <CatalogPrefillPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} beforeMutation={() => saveNow()} onPhoto={acceptCatalogPhoto} onCatalogRefresh={refreshCatalog} />
             </div>
             <div className="work-pane" role="tabpanel" id="pane-prompt" aria-labelledby="tab-prompt" hidden={workspaceTab !== 'prompt'}>
-              <PromptPanel estimate={analysisEstimate} analysisAuthorized={analysisAuthorized} busy={phase3Busy} prompt={prompt} promptText={promptText} promptHistory={photo.prompt_history || []} onEstimate={() => void estimateCurrentAnalysis()} onAuthorized={setAnalysisAuthorized} onRunAnalysis={() => void runCurrentAnalysis()} onCompile={() => void compilePrompt()} onPromptText={setPromptText} onSavePrompt={() => void savePromptVersion()} onApprovePrompt={() => void approveCurrentPrompt()} />
+              <PromptPanel estimate={analysisEstimate} analysisAuthorized={analysisAuthorized} busy={phase3Busy} prompt={prompt} promptText={promptText} promptHistory={photo.prompt_history || []} onEstimate={() => void estimateCurrentAnalysis()} onAuthorized={setAnalysisAuthorized} onRunAnalysis={() => void runCurrentAnalysis()} onCompile={() => void compilePrompt()} onPromptText={setPromptText} onSavePrompt={() => void savePromptVersion()} onApprovePrompt={() => void approveCurrentPrompt()} refinementEstimate={refinementEstimate} refinementAuthorized={refinementAuthorized} refinement={refinement} refinementText={refinementText} refinementHistory={refinementHistory} onEstimateRefinement={() => void estimateCurrentRefinement()} onRefinementAuthorized={setRefinementAuthorized} onRunRefinement={() => void runCurrentRefinement()} onRefinementText={setRefinementText} onReviewRefinement={reviewRefinement} onAdoptRefinement={() => void adoptCurrentRefinement()} />
             </div>
             <div className="work-pane work-pane-editing" role="tabpanel" id="pane-editing" aria-labelledby="tab-editing" hidden={workspaceTab !== 'editing'}>
               <EditPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} batchSelectedIds={batchSelectedIds} catalogPhotos={photos} batchOpen={batchOpen} onBatchOpen={setBatchOpen} selectedVersionId={selectedVersionId} onSelectVersion={setSelectedVersionId} onBeforeRun={() => saveNow()} onRefresh={refreshCurrentPhoto} onReviewNext={() => move(1)} active={workspaceTab === 'editing' && !gridOpen} />

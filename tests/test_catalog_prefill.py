@@ -58,6 +58,23 @@ class CatalogPrefillTests(unittest.TestCase):
     def run_prefill(self):
         return self.client.post("/api/catalog/suggestions/run", json={"photo_ids": [self.photo_id], "authorized": True})
 
+    def test_new_local_candidates_are_reviewable_search_terms_only(self):
+        self.fake.classify = lambda path, offline=False: {"ranking": [
+            {"label": "a waterfall", "similarity": 31.0},
+            {"label": "a river", "similarity": 25.0},
+            {"label": "a hazy photograph", "similarity": 22.0},
+            {"label": "a clear photograph", "similarity": 18.0},
+        ], "measurements": {}}
+        suggestion = self.run_prefill()
+        self.assertEqual(suggestion.status_code, 200, suggestion.text)
+        proposed = suggestion.json()["results"][0]["proposed"]
+        self.assertEqual(proposed["primary_subject"], "waterfall")
+        self.assertIn("hazy", proposed["condition_tags"])
+        listed = self.client.get("/api/photos").json()[0]
+        self.assertIn("waterfall", listed["suggested_search_terms"])
+        self.assertIsNone(listed["primary_subject"])
+        self.assertEqual(listed["tags"], [])
+
     def test_city_match_missing_invalid_radius_and_ambiguity(self):
         city = {"city": "Budapest", "country": "Hungary", "private_lat": 47.507, "private_lon": 19.045, "radius_km": 25}
         self.assertEqual(match_city({"private_lat": None, "private_lon": None}, [city])["status"], "NO_GPS")
@@ -238,7 +255,7 @@ class CatalogPrefillTests(unittest.TestCase):
             db.close()
         db = connect(folder)
         try:
-            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 11)
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 12)
             self.assertEqual(db.execute("SELECT display_name FROM subjects WHERE id='legacy'").fetchone()[0], "Legacy subject")
             self.assertIsNotNone(db.execute("SELECT name FROM sqlite_master WHERE name='exports'").fetchone())
             self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")

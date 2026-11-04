@@ -168,8 +168,14 @@ def _proposal(photo, result: dict, location: dict) -> tuple[dict, dict]:
     tags = [noun] if noun else []
     condition = []
     condition_scores = {entry["label"]: entry["similarity"] for entry in ranking if entry["label"] in SETTINGS["conditions"]}
-    if condition_scores.get("a night photograph", 0) > condition_scores.get("a daytime photograph", 0) + 1.5:
-        condition.append("night")
+    for candidate, counterpart, name in (
+        ("a night photograph", "a daytime photograph", "night"),
+        ("a backlit photograph", "an evenly lit photograph", "backlit"),
+        ("a blurry photograph", "a sharp photograph", "blurred"),
+        ("a hazy photograph", "a clear photograph", "hazy"),
+    ):
+        if candidate in condition_scores and counterpart in condition_scores and condition_scores[candidate] > condition_scores[counterpart] + 1.5:
+            condition.append(name)
     preset = "architecture-clarity" if noun in {"opera house", "parliament building", "church", "cathedral", "museum", "palace", "castle", "bridge", "monument", "building facade"} else "natural-balance"
     description = f"Travel photograph of {noun}." if noun else ""
     proposal = {"primary_subject": noun, "content_tags": tags, "condition_tags": condition,
@@ -179,7 +185,7 @@ def _proposal(photo, result: dict, location: dict) -> tuple[dict, dict]:
                 "measurements": result.get("measurements", {}),
                 "exif": {"capture_datetime_raw": photo["capture_datetime_raw"], "camera": photo["camera"]},
                 "filename_hint": photo["original_filename"],
-                "warning": "Relative model similarity; verify visually. No exact landmark inferred."}
+                "warning": "Relative model similarity, not a probability. Verify visually; no exact landmark or location inferred."}
     return proposal, evidence
 
 

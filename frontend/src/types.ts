@@ -23,6 +23,7 @@ export interface PhotoSummary {
   primary_subject: string | null
   thumbnail_url: string
   tags: Tag[]
+  suggested_search_terms?: string[]
 }
 
 export interface ReviewDraft {
@@ -273,4 +274,31 @@ export interface CompiledPrompt {
   input_snapshot: Record<string, unknown>
   publication_profile_id: string
   publication_profile_snapshot: PublicationProfile
+  refinement_id?: string | null
+}
+
+export interface RefinementEstimate {
+  prompt_id: string
+  provider: string
+  model: string
+  template_version: string
+  estimated_cost_usd: string
+  note: string
+}
+
+export interface PromptRefinement {
+  id: string
+  photo_id: string
+  base_prompt_id: string
+  provider: string
+  model: string
+  template_version: string
+  proposed_text: string | null
+  adoption_text: string | null
+  restored_requirements: number
+  status: 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+  estimated_cost_usd: number | null
+  actual_cost_usd: number | null
+  error: string | null
+  created_at: string
 }

@@ -18,7 +18,13 @@ Install [Python 3.11+](https://www.python.org/downloads/) and [Node.js 22+](http
 
 This one script creates the ignored data folders and repository-local Python environment, installs pinned Python and Node dependencies, imports supported photos in data/input, builds the website, opens the browser, and starts the server. Leave the terminal open; press Ctrl+C to stop. Rerun it after adding photos or updating the repository.
 
+The launcher checks the existing catalog's source hashes and private media before importing. If you replaced the input with an unrelated batch, it stops instead of combining that batch with stale records. Stop the server, archive the previous `data/catalog/` and `data/exports/` with their media under `data/backups/`, then use a fresh `data/catalog/` for the new `data/input/`. A SQLite snapshot alone does not include thumbnails or edits. See the [V2 Priority 3 review procedure](docs/V2_PHASE_03_REVIEW.md). The similarly named V1 Phase 03 review and `data/phase03-review/` are historical.
+
+On a fresh clone on another Windows laptop, `data/` is absent because it is private and ignored by Git. Copy that laptop's photos into `data/input/` and run the launcher once; it creates `data/catalog/catalog.sqlite`, thumbnails, and the other generated folders automatically. Direct service startup through the repository's `.venv` Python now performs the same catalog preparation when the environment and frontend are already set up. Startup stops if any supported photo fails to import. If you also copied an old `data/catalog/`, it is an existing catalog, not a fresh install: restore/relink its original files or archive it before starting a different batch. The catalog stores source paths for the laptop where each photo was imported.
+
 The terminal prints a one-run username and password, a local URL, and LAN URLs. Enter those credentials in the browser prompt. Other devices on the same trusted private network can use a LAN URL. If Windows Firewall asks, allow Python only on **private** networks when LAN access is needed. The launcher uses plain HTTP; see [Security and privacy](#security-and-privacy).
+
+If no LAN gateway is available, the launcher binds to `127.0.0.1` and prints only the local URL. A first installation still needs access to the pinned Python and Node packages; the local-only fallback does not supply an offline package cache.
 
 To change the port or keep the browser closed:
 
@@ -46,14 +52,12 @@ The one-file launcher is for Windows PowerShell. Linux uses the same locked spec
     python3 scripts/setup_env.py
     .venv/bin/python -m backend.catalog init
     test -f data/catalog/catalog.sqlite
+    .venv/bin/python -m backend.catalog preflight --strict
+    .venv/bin/python -m backend.catalog import-folder data/input
     npm --prefix frontend run build
     .venv/bin/python -m backend.review --data-dir data/catalog --host 127.0.0.1 --port 8000
 
-Open http://127.0.0.1:8000/. Before starting the server, import Linux photos placed in data/input with:
-
-    .venv/bin/python -m backend.catalog import-folder data/input
-
-The Linux command binds to the current computer. Network binding requires an access password and explicit host configuration; the supported LAN flow is scripts/start.ps1 on Windows.
+Open http://127.0.0.1:8000/. Inspect the import result for errors before starting the server. The Linux command binds to the current computer. Network binding requires an access password and explicit host configuration; the supported LAN flow is scripts/start.ps1 on Windows.
 
 ## Everyday workflow
 
@@ -107,7 +111,7 @@ The minimum recoverable set is data/input/, data/catalog/, and data/exports/, pl
 
 Use a new filename for every snapshot. Stop the server before manually copying the whole data/ tree. For read-only integrity checks:
 
-    & .\.venv\Scripts\python.exe -m backend.catalog preflight
+    & .\.venv\Scripts\python.exe -m backend.catalog preflight --strict
     & .\.venv\Scripts\python.exe -m backend.review.export_cli audit
     & .\.venv\Scripts\python.exe -m backend.review.export_cli preview
 

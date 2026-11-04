@@ -1,5 +1,7 @@
 # Phase 03 — Analysis and prompt assembly technical report
 
+**Historical V1 report.** The active V2 Priority 3 report is [V2_PHASE_03_TECHNICAL_REPORT.md](V2_PHASE_03_TECHNICAL_REPORT.md). V2 uses the canonical `data/input/` and `data/catalog/` paths.
+
 - Date: 2026-10-31
 - Branch: `dev/v1-phase-03-prompts`
 - Owner-approved Phase 02 baseline: `9f88647` (`working ui for editing`)

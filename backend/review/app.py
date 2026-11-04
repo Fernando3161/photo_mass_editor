@@ -29,6 +29,7 @@ from .analysis_service import estimate_analysis, run_analysis
 from . import local_corrections as local
 from . import local_batch
 from . import prompt_batch
+from . import prompt_refinement
 from .prompts import PromptConflict, approve_prompt, create_compiled_prompt, revise_prompt
 from .editing import (
     EditConflict, EditProvider, batch_jobs, cancel_job, enqueue_batch,
@@ -87,6 +88,11 @@ class AnalysisBatch(BaseModel):
 
 class PromptEdit(BaseModel):
     compiled_text: str = Field(min_length=1, max_length=10000)
+
+
+class RefinementRun(BaseModel):
+    authorized: bool = False
+    budget_usd: Decimal | None = Field(default=None, ge=0)
 
 
 class EditBatch(BaseModel):
@@ -184,11 +190,13 @@ def create_app(
     edit_provider: EditProvider | None = None,
     local_recognizer: ModelManager | None = None,
     access_password: str = "",
+    refinement_provider: prompt_refinement.RefinementProvider | None = None,
 ) -> FastAPI:
     root = Path(data_dir).resolve()
     provider = analysis_provider or UnavailableAnalysisProvider()
     editor = edit_provider if edit_provider is not None else configured_provider()
     recognizer = local_recognizer or ModelManager()
+    refiner = refinement_provider or prompt_refinement.OpenAITextRefiner()
     executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="photo-edit")
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -537,6 +545,48 @@ def create_app(
             raise HTTPException(status_code=409, detail={"message": "Prompt is stale", "conflicts": exc.conflicts}) from exc
         finally:
             db.close()
+
+    @app.get("/api/photos/{photo_id}/prompt-refinements")
+    def refinement_history(photo_id: str) -> list[dict]:
+        try:
+            return prompt_refinement.history(root, photo_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Photo not found") from exc
+
+    @app.post("/api/prompts/{prompt_id}/refinement/estimate")
+    def refinement_estimate(prompt_id: str) -> dict:
+        try:
+            return prompt_refinement.estimate(root, prompt_id, refiner)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Prompt not found") from exc
+        except PromptConflict as exc:
+            raise HTTPException(status_code=409, detail={"conflicts": exc.conflicts}) from exc
+
+    @app.post("/api/prompts/{prompt_id}/refinement/run")
+    def refinement_run(prompt_id: str, payload: RefinementRun) -> dict:
+        try:
+            return prompt_refinement.run(root, prompt_id, refiner,
+                                         authorized=payload.authorized, budget_usd=payload.budget_usd)
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Prompt not found") from exc
+        except PromptConflict as exc:
+            raise HTTPException(status_code=409, detail={"conflicts": exc.conflicts}) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    @app.post("/api/prompt-refinements/{refinement_id}/adopt")
+    def refinement_adopt(refinement_id: str, payload: PromptEdit | None = None) -> dict:
+        try:
+            return prompt_refinement.adopt(root, refinement_id,
+                                           payload.compiled_text if payload else None)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Refinement not found") from exc
+        except PromptConflict as exc:
+            raise HTTPException(status_code=409, detail={"conflicts": exc.conflicts}) from exc
 
     @app.post("/api/prompt-batches/preview")
     def preview_prompts(payload: PromptBatchRequest) -> dict:

@@ -41,6 +41,8 @@ A batch is a saved selection/filter and job group; it does not own source identi
 V2 local batches snapshot a contact-sheet selection and per-photo settings. They use the bounded two-worker local executor and separate receipts. Prompt batches preview proposed text against prior versions, require per-photo acknowledgment, then compile and approve immutable per-photo prompts. Paid image editing retains its own preview and authorization.
 
 ## Operational considerations
+
+V2 Priority 3 expands the existing local CLIP candidate set and condition comparisons; the model and file cache are unchanged, while the candidate/settings version changes and invalidates cached suggestions. Pending suggestions can contribute to catalog text search without becoming confirmed tags. The separate `prompt_refinement.py` service sends only a current deterministic prompt to an optional server-side OpenAI text model after a cost preview and current-run authorization. It stores private receipts and offers an explicit adopt step that makes a new pending prompt version. Image approval and image-run authorization are separate downstream actions. No local prose-generating vision model is installed while Windows/Linux CPU and owner-photo quality evidence remain unmeasured.
 Use SQLite transactions/WAL, migrations and unique IDs. Stable IDs survive renames/moves; track original location and managed path separately. Jobs should be resumable and idempotent with unique output paths. UI virtualizes large image collections; never request all full-resolution assets simultaneously. Treat masks and generated images as potentially sensitive. Store actual provider model identifier and pricing/cost receipts per call rather than depending on hardcoded assumptions.
 
 ## Deferred alternatives

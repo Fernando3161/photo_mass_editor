@@ -171,7 +171,7 @@ class CatalogTests(unittest.TestCase):
         photo_id = import_photo(self.data, source)["id"]
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 11)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 12)
             self.assertEqual(db.execute("PRAGMA foreign_keys").fetchone()[0], 1)
             values = (str(uuid4()), photo_id, 1, "edited/test.png", "0" * 64, 20, 10, "2026-01-01T00:00:00Z", "APPROVED")
             db.execute("INSERT INTO image_versions(id,photo_id,version_number,path,sha256,width,height,created_at,review_status) VALUES (?,?,?,?,?,?,?,?,?)", values)
@@ -188,7 +188,7 @@ class CatalogTests(unittest.TestCase):
 
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 11)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0], 12)
         finally:
             db.close()
 
@@ -197,7 +197,7 @@ class CatalogTests(unittest.TestCase):
         command = [sys.executable, "-m", "backend.catalog", "--data-dir", str(self.data)]
         root = Path(__file__).resolve().parents[1]
         initialized = subprocess.run(command + ["init"], cwd=root, capture_output=True, text=True, check=True)
-        self.assertEqual(json.loads(initialized.stdout)["schema_version"], 11)
+        self.assertEqual(json.loads(initialized.stdout)["schema_version"], 12)
         imported = subprocess.run(command + ["import-photo", str(source)], cwd=root,
                                   capture_output=True, text=True, check=True)
         photo_id = json.loads(imported.stdout)["id"]
@@ -212,6 +212,52 @@ class CatalogTests(unittest.TestCase):
         checked = subprocess.run(command + ["preflight"], cwd=root,
                                  capture_output=True, text=True, check=True)
         self.assertEqual(json.loads(checked.stdout)[0]["id"], photo_id)
+
+    def test_cli_strict_preflight_blocks_missing_private_derivative(self):
+        source = self.image()
+        photo_id = import_photo(self.data, source)["id"]
+        command = [sys.executable, "-m", "backend.catalog", "--data-dir", str(self.data), "preflight", "--strict"]
+        root = Path(__file__).resolve().parents[1]
+        healthy = subprocess.run(command, cwd=root, capture_output=True, text=True)
+        self.assertEqual(healthy.returncode, 0)
+        self.assertEqual(json.loads(healthy.stdout)[0]["source"], "OK")
+        thumbnail = self.data / self.row(photo_id)["thumbnail_path"]
+        thumbnail.unlink()
+        blocked = subprocess.run(command, cwd=root, capture_output=True, text=True)
+        self.assertNotEqual(blocked.returncode, 0)
+        self.assertEqual(json.loads(blocked.stdout)[0]["thumbnail"], "MISSING")
+        self.assertIn("stop before importing another batch", blocked.stderr)
+        self.assertTrue(source.is_file())
+
+    def test_cli_folder_import_reports_partial_failure_to_launcher(self):
+        valid = self.image()
+        broken = self.sources / "broken.jpg"
+        broken.write_bytes(b"not an image")
+        command = [sys.executable, "-m", "backend.catalog", "--data-dir", str(self.data),
+                   "import-folder", str(self.sources)]
+        result = subprocess.run(command, cwd=Path(__file__).resolve().parents[1],
+                                capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        receipt = json.loads(result.stdout)
+        self.assertEqual(len(receipt["imported"]), 1)
+        self.assertEqual(len(receipt["errors"]), 1)
+        self.assertTrue(valid.is_file())
+        self.assertEqual(broken.read_bytes(), b"not an image")
+
+    def test_cli_folder_import_bootstraps_fresh_catalog(self):
+        source = self.image()
+        self.assertFalse(self.data.exists())
+        command = [sys.executable, "-m", "backend.catalog", "--data-dir", str(self.data)]
+        root = Path(__file__).resolve().parents[1]
+        imported = subprocess.run(command + ["import-folder", str(self.sources)], cwd=root,
+                                  capture_output=True, text=True, check=True)
+        self.assertEqual(len(json.loads(imported.stdout)["imported"]), 1)
+        self.assertTrue((self.data / "catalog.sqlite").is_file())
+        checked = subprocess.run(command + ["preflight", "--strict"], cwd=root,
+                                 capture_output=True, text=True, check=True)
+        self.assertEqual(len(json.loads(checked.stdout)), 1)
+        self.assertEqual(json.loads(checked.stdout)[0]["source"], "OK")
+        self.assertTrue(source.is_file())
 
     def test_cli_reports_invalid_gps_reference_without_guessing_location(self):
         exif = Image.Exif()

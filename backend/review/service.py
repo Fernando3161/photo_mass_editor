@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 from pathlib import Path
@@ -121,6 +122,17 @@ def list_photos(data_dir: Path) -> list[dict[str, Any]]:
             item = dict(row)
             item["thumbnail_url"] = _media_url(item["id"], "thumbnail")
             item["tags"] = _tags(db, item["id"])
+            suggestion = db.execute(
+                "SELECT proposed_json FROM catalog_suggestions WHERE photo_id=? AND status='PENDING' AND source_sha256=(SELECT sha256 FROM photos WHERE id=?) ORDER BY created_at DESC LIMIT 1",
+                (item["id"], item["id"]),
+            ).fetchone()
+            if suggestion:
+                proposed = json.loads(suggestion["proposed_json"])
+                item["suggested_search_terms"] = [proposed.get("primary_subject", ""),
+                                                  *proposed.get("content_tags", []),
+                                                  *proposed.get("condition_tags", [])]
+            else:
+                item["suggested_search_terms"] = []
             result.append(item)
         return result
     finally:

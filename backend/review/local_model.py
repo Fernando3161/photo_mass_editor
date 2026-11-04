@@ -16,9 +16,18 @@ LABELS = (
     "a palace", "a castle", "a bridge", "a monument", "a sculpture", "a city street",
     "a building facade", "a portrait of a person", "a group of people", "a restaurant meal",
     "a river", "a lake", "a mountain landscape", "a garden", "a beach",
+    "a waterfall", "a forest trail", "a desert landscape", "a snowy mountain",
+    "a harbor", "a boat", "a train", "a market", "a shopfront",
+    "an archaeological site", "an old town square", "a tower", "a skyline",
+    "a street mural", "a painting in a museum", "an indoor artwork",
+    "a person walking", "a crowded street", "a wildlife photograph",
+    "a hotel interior", "a cafe interior", "a plated dessert", "a panoramic landscape",
 )
-CONDITIONS = ("a night photograph", "a daytime photograph", "a backlit photograph", "a blurry photograph")
-SETTINGS = {"labels": LABELS, "conditions": CONDITIONS, "template": "a travel photograph of {}", "version": 1}
+CONDITIONS = (
+    "a night photograph", "a daytime photograph", "a backlit photograph", "an evenly lit photograph",
+    "a blurry photograph", "a sharp photograph", "a hazy photograph", "a clear photograph",
+)
+SETTINGS = {"labels": LABELS, "conditions": CONDITIONS, "template": "a travel photograph of {}", "version": 2}
 
 
 class ModelUnavailable(RuntimeError):

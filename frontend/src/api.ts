@@ -1,4 +1,4 @@
-import type { AnalysisEstimate, AnalysisRun, CatalogSuggestion, CompiledPrompt, EditJob, EditPreview, ImageVersion, LocalJob, LocalRecommendation, LocalSettings, LocalBatchPreview, LocalBatchStatus, NamedLocalRecipe, PreparedPrompt, PromptBatchPreview, LocationPreview, Options, PhotoDetail, PhotoSummary, Preset, SavePayload, VisitedCity } from './types'
+import type { AnalysisEstimate, AnalysisRun, CatalogSuggestion, CompiledPrompt, EditJob, EditPreview, ImageVersion, LocalJob, LocalRecommendation, LocalSettings, LocalBatchPreview, LocalBatchStatus, NamedLocalRecipe, PreparedPrompt, PromptBatchPreview, LocationPreview, Options, PhotoDetail, PhotoSummary, Preset, SavePayload, VisitedCity, RefinementEstimate, PromptRefinement } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init)
@@ -111,6 +111,16 @@ export const api = {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ compiled_text: compiledText }),
   }),
   approvePrompt: (promptId: string) => request<CompiledPrompt>(`/api/prompts/${promptId}/approve`, { method: 'POST' }),
+  estimateRefinement: (promptId: string) => request<RefinementEstimate>(`/api/prompts/${promptId}/refinement/estimate`, { method: 'POST' }),
+  runRefinement: (promptId: string, budget: string) => request<PromptRefinement>(`/api/prompts/${promptId}/refinement/run`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ authorized: true, budget_usd: budget }),
+  }),
+  getRefinements: (photoId: string) => request<PromptRefinement[]>(`/api/photos/${photoId}/prompt-refinements`),
+  adoptRefinement: (refinementId: string, compiledText: string) => request<CompiledPrompt>(`/api/prompt-refinements/${refinementId}/adopt`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ compiled_text: compiledText }),
+  }),
   previewEdits: (photoIds: string[], engine: 'DETERMINISTIC' | 'GENERATIVE', settings: Record<string, number>, maskId: string | null, retryOverride: boolean, replaceApproved: boolean) => request<EditPreview>('/api/edit/preview', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ photo_ids: photoIds, engine, settings, mask_id: maskId, retry_override: retryOverride, replace_approved: replaceApproved }),

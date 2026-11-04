@@ -23,7 +23,12 @@ if (-not (Test-Path -LiteralPath $venvPython -PathType Leaf)) { throw 'Repositor
 & $venvPython -c "import pathlib,sys; assert pathlib.Path(sys.prefix).resolve() == pathlib.Path('.venv').resolve()"
 if ($LASTEXITCODE -ne 0) { throw 'The selected Python is outside this repository .venv.' }
 
-$photos = @(Get-ChildItem -LiteralPath 'data/input' -File -ErrorAction Stop | Where-Object { $_.Extension -match '^\.(jpe?g|png|tiff?|webp)$' })
+if (Test-Path -LiteralPath 'data/catalog/catalog.sqlite' -PathType Leaf) {
+    & $venvPython -m backend.catalog preflight --strict | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Existing catalog has missing or changed media. Restore its sources or archive that catalog before importing a new batch.' }
+}
+
+$photos = @(Get-ChildItem -LiteralPath 'data/input' -File -Recurse -ErrorAction Stop | Where-Object { $_.Extension -match '^\.(jpe?g|png|tiff?|webp)$' })
 if ($photos.Count -gt 0) {
     & $venvPython -m backend.catalog import-folder data/input
     if ($LASTEXITCODE -ne 0) { throw 'Photo import failed.' }
@@ -39,23 +44,24 @@ if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
 if (-not (Test-Path -LiteralPath 'frontend/dist/index.html' -PathType Leaf)) { throw 'Frontend build did not create index.html.' }
 
 $addresses = @(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -and $_.IPv4Address } | ForEach-Object { $_.IPv4Address.IPAddress } | Where-Object { $_ -and $_ -notlike '169.254.*' } | Select-Object -Unique)
-if ($addresses.Count -eq 0) { throw 'No active LAN IPv4 address with a default gateway was found.' }
+$bindHost = if ($addresses.Count -gt 0) { '0.0.0.0' } else { '127.0.0.1' }
 $passwordBytes = New-Object byte[] 24
 $generator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
 try { $generator.GetBytes($passwordBytes) } finally { $generator.Dispose() }
 $env:PHOTO_EDITOR_ACCESS_PASSWORD = [Convert]::ToBase64String($passwordBytes).TrimEnd('=') -replace '\+', '-' -replace '/', '_'
-$env:PHOTO_EDITOR_ALLOWED_HOSTS = 'localhost,127.0.0.1,' + ($addresses -join ',')
+$env:PHOTO_EDITOR_ALLOWED_HOSTS = (@('localhost', '127.0.0.1') + $addresses) -join ','
 
 Write-Host ''
 Write-Host "Local: http://127.0.0.1:$Port/"
 foreach ($address in $addresses) { Write-Host "LAN:   http://${address}:$Port/" }
+if ($addresses.Count -eq 0) { Write-Host 'No LAN gateway found; starting for this computer only.' }
 Write-Host 'Username: owner'
 Write-Host "Password for this run: $env:PHOTO_EDITOR_ACCESS_PASSWORD"
-Write-Host 'Use only on a trusted private network. HTTP traffic is not encrypted. Do not forward this port to the internet.'
+if ($addresses.Count -gt 0) { Write-Host 'Use only on a trusted private network. HTTP traffic is not encrypted. Do not forward this port to the internet.' }
 Write-Host 'Press Ctrl+C to stop the server.'
 if (-not $NoBrowser) { Start-Process "http://127.0.0.1:$Port/" }
 try {
-    & $venvPython -m backend.review --data-dir data/catalog --host 0.0.0.0 --port $Port
+    & $venvPython -m backend.review --data-dir data/catalog --host $bindHost --port $Port
     if ($LASTEXITCODE -ne 0) { throw 'Review server exited with an error.' }
 } finally {
     Remove-Item Env:PHOTO_EDITOR_ACCESS_PASSWORD -ErrorAction SilentlyContinue

@@ -204,6 +204,29 @@ def revise_prompt(db: sqlite3.Connection, prompt_id: str, compiled_text: str) ->
     return get_prompt(db, new_id)
 
 
+def required_prompt_lines(snapshot: dict[str, Any]) -> list[str]:
+    baseline, conflicts = compile_text(snapshot)
+    if conflicts:
+        raise PromptConflict(conflicts)
+    return [line for line in baseline.splitlines() if line.startswith((
+        "Use only the deterministic publication input", "Publication target:",
+        "Owner instructions:", "Approved constraints:",
+        "Application AI allowance:", "Do not introduce semantic changes",
+        "Selection instruction:", "Return a separate edited version"))]
+
+
+def validate_prompt_text(snapshot: dict[str, Any], candidate: str) -> None:
+    required = required_prompt_lines(snapshot)
+    conflicts = []
+    conflicts += detect_conflicts(candidate, snapshot["approved_constraints"],
+                                  allowance=snapshot["ai_allowance"],
+                                  semantic_change_consent=snapshot["semantic_change_consent"])
+    if any(line not in candidate for line in required):
+        conflicts.append("The edited prompt removed a required profile, instruction, allowance, or constraint")
+    if conflicts:
+        raise PromptConflict(list(dict.fromkeys(conflicts)))
+
+
 def approve_prompt(db: sqlite3.Connection, prompt_id: str) -> dict[str, Any]:
     prompt = db.execute("SELECT * FROM compiled_prompts WHERE id=?", (prompt_id,)).fetchone()
     if prompt is None:
@@ -220,18 +243,7 @@ def approve_prompt(db: sqlite3.Connection, prompt_id: str) -> dict[str, Any]:
             or current["publication_profile_id"] != prompt["publication_profile_id"]
             or current["compiled_prompt_stale"]):
         raise PromptConflict(["The photo or editing draft changed; compile a new prompt before approval"])
-    snapshot = json.loads(prompt["input_snapshot_json"])
-    baseline, conflicts = compile_text(snapshot)
-    conflicts += detect_conflicts(prompt["compiled_text"], snapshot["approved_constraints"],
-                                  allowance=snapshot["ai_allowance"],
-                                  semantic_change_consent=snapshot["semantic_change_consent"])
-    required = [line for line in baseline.splitlines() if line.startswith((
-        "Publication target:", "Approved constraints:", "Application AI allowance:",
-        "Do not introduce semantic changes", "Selection instruction:"))]
-    if any(line not in prompt["compiled_text"] for line in required):
-        conflicts.append("The edited prompt removed a required profile, instruction, allowance, or constraint")
-    if conflicts:
-        raise PromptConflict(list(dict.fromkeys(conflicts)))
+    validate_prompt_text(json.loads(prompt["input_snapshot_json"]), prompt["compiled_text"])
     db.execute("UPDATE compiled_prompts SET approved_for_job=0, approved_at=NULL WHERE photo_id=?", (prompt["photo_id"],))
     db.execute(
         "UPDATE compiled_prompts SET approved_for_job=1, approved_at=? WHERE id=?", (utc_now(), prompt_id)

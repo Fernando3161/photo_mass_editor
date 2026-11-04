@@ -1,6 +1,6 @@
 # V2 project plan — faster local editing and review
 
-Status: Priority 2 implementation on `dev/v2-02-batch-workflow` for owner review, 2026-11-02. The owner stated Priority 1 complete and authorized Priority 2. This plan responds to the private `CRITICAL_EVALUATION_2026-11-02.local.md`; that report stays excluded from Git. Priority 2 implementation and remaining owner acceptance checks are recorded in its report. Priorities 3–4 remain planned.
+Status: Priority 3 implementation on `dev/v2-03-intelligence-prompts` for owner review, 2026-11-04. The owner requested the next phase from the clean, committed Priority 2 branch at `75dda06`. This plan responds to the private `CRITICAL_EVALUATION_2026-11-02.local.md`; that report stays excluded from Git. Priority 3 implementation and remaining owner acceptance checks are recorded in its report. Priority 4 remains planned.
 
 ## Product outcome and boundaries
 

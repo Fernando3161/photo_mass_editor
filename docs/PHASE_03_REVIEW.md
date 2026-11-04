@@ -1,5 +1,7 @@
 # Phase 03 owner review — analysis and prompt assembly
 
+**Historical V1 review.** For the active V2 Priority 3 review, use [V2_PHASE_03_REVIEW.md](V2_PHASE_03_REVIEW.md) with `data/input/` and `data/catalog/`. The phase-specific paths below document the earlier V1 workflow only.
+
 Phase 03 adds opt-in analysis orchestration and versioned prompt assembly. No production AI provider is selected or configured in this phase, and the review below makes no paid call. Provider behavior is verified with an injected fake in automated tests.
 
 Run from the repository root. Keep catalogs and backups under ignored `data/`.

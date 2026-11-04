@@ -46,6 +46,7 @@ The editing service checks the original SHA-256, creates a separate orientation-
 Server-side `OPENAI_API_KEY`, model, and planning amount are read from the process environment; no credential is sent to browser code. Restarted queued or interrupted paid jobs are not resumed automatically. Planning amounts gate runs but are not provider-enforced account limits or actual cost receipts. Phase 04 review data lives under ignored `data/phase04-review/`. Phase 05 keeps pinned local model files under ignored `data/models/`, visited-city data and suggestion provenance in private SQLite, and never uploads photos for recognition. It hashes the original or managed source before using the separately stored verified thumbnail as model input. Model downloads are checksum verified and contain no user photograph. Export moves to Phase 06.
 
 ## Recovery
+
 Database backup and media-manifest checks should validate physical paths and hashes. Failed writes never assume successful version creation. An orphan scanner should identify missing/unreferenced media without deleting it automatically.
 
 ## V2 Priority 1 local correction artifacts
@@ -57,3 +58,7 @@ Replacement jobs retain the ID of the approved version they were created to repl
 ## V2 Priority 2 batch receipts
 
 Local batch selections, skipped reasons, named recipe settings, per-photo overrides, source identity and request signatures remain in the private catalog. Every queued photo retains its own immutable recipe, job, PNG master and website JPEG rules. Cancellation changes queued job state only; a running render finishes or fails independently. Queued batch jobs resume on restart, while interrupted running jobs fail for inspection. The browser receives eligibility and settings, never source hashes or private paths. Batch prompt previews keep source identity inside server-side signatures; compiled prompts and approvals remain separate from paid run authorization.
+
+## V2 Priority 3 prompt proposals
+
+Migration `012_prompt_refinement.sql` stores opt-in text-refinement receipts in private SQLite. The paid text request contains the deterministic prompt text only; the application injects no source path, original image, publication image, source hash, raw EXIF or precise GPS. Owner-entered prompt text is sent after current-run authorization. Raw responses, usage and complete request text remain server-side. The browser receives the proposed text and receipt metadata. Adopting a proposal creates a distinct immutable prompt version without approving it or running an image edit. The same current-source/draft/profile checks and policy validation apply before adoption and approval. Catalog search may match pending local-recognition terms, which remain suggestions rather than confirmed labels.

@@ -36,7 +36,8 @@ def main() -> None:
     folder.add_argument("folder", type=Path)
     folder.add_argument("--mode", choices=("reference", "copy"), default="reference")
     commands.add_parser("list")
-    commands.add_parser("preflight")
+    preflight_command = commands.add_parser("preflight")
+    preflight_command.add_argument("--strict", action="store_true", help="Exit nonzero when any catalog source or private derivative is missing or changed")
     relink = commands.add_parser("relink")
     relink.add_argument("photo_id")
     relink.add_argument("source", type=Path)
@@ -48,7 +49,10 @@ def main() -> None:
     elif args.command == "import-photo":
         print(json.dumps(import_photo(args.data_dir, args.source, args.mode)))
     elif args.command == "import-folder":
-        print(json.dumps(import_folder(args.data_dir, args.folder, args.mode), indent=2))
+        result = import_folder(args.data_dir, args.folder, args.mode)
+        print(json.dumps(result, indent=2))
+        if result["errors"]:
+            raise SystemExit("Some photos failed to import; resolve the listed errors before starting the review service")
     elif args.command == "list":
         db = connect(args.data_dir)
         try:
@@ -71,7 +75,13 @@ def main() -> None:
         finally:
             db.close()
     elif args.command == "preflight":
-        print(json.dumps(preflight(args.data_dir), indent=2))
+        results = preflight(args.data_dir)
+        print(json.dumps(results, indent=2))
+        if args.strict and any(
+            row["source"] != "OK" or row["thumbnail"] != "OK"
+            or row["managed"] not in (None, "OK") for row in results
+        ):
+            raise SystemExit("Catalog preflight found missing or changed media; stop before importing another batch")
     elif args.command == "relink":
         relink_photo(args.data_dir, args.photo_id, args.source)
         print(json.dumps({"id": args.photo_id, "status": "relinked"}))
