@@ -12,6 +12,7 @@ backend/review/{image_pipeline,editing,openai_edit}.py # Phase 04 boundaries
 backend/review/{local_model,catalog_prefill}.py         # Phase 05 boundaries
 backend/review/{export,export_cli}.py                   # Phase 06 boundaries
 backend/review/local_corrections.py                     # V2 Priority 1 recipes and full-resolution masters
+backend/review/{local_batch,prompt_batch}.py             # V2 Priority 2 local batches and prompt preparation
 frontend/src/
 prompts/{presets,system}/
 tests/
@@ -37,6 +38,7 @@ Image ingestion, AI observation, prompt compilation, publication-input derivatio
 Original photo -> import/checksum/metadata -> optional local recognition and city suggestions -> human review of classification/location/preset/publication profile/instructions -> compile and inspect final prompt -> deterministic publication input -> authorized job/raw attempt -> validated publication version -> visual compare -> approve/reject -> approved-only export.
 V2 local correction branches after catalog review: source hash and recipe recommendation -> owner-adjustable settings -> receipt and full-resolution PNG master -> separate website JPEG -> explicit visual approval -> approved-only export. The prompt and publication-input steps remain exclusive to generative editing.
 A batch is a saved selection/filter and job group; it does not own source identity.
+V2 local batches snapshot a contact-sheet selection and per-photo settings. They use the bounded two-worker local executor and separate receipts. Prompt batches preview proposed text against prior versions, require per-photo acknowledgment, then compile and approve immutable per-photo prompts. Paid image editing retains its own preview and authorization.
 
 ## Operational considerations
 Use SQLite transactions/WAL, migrations and unique IDs. Stable IDs survive renames/moves; track original location and managed path separately. Jobs should be resumable and idempotent with unique output paths. UI virtualizes large image collections; never request all full-resolution assets simultaneously. Treat masks and generated images as potentially sensitive. Store actual provider model identifier and pricing/cost receipts per call rather than depending on hardcoded assumptions.

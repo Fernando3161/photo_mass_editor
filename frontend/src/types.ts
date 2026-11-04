@@ -110,6 +110,20 @@ export interface LocalJob {
   replacement_of_version_id: string | null
 }
 
+export interface NamedLocalRecipe { id: string; name: string; settings: LocalSettings }
+export interface LocalBatchItem {
+  photo_id: string; eligible: boolean; reason?: string; settings?: LocalSettings; revision?: number
+  operations?: string[]; output_targets?: string[]; replacement_of_version_id?: string | null
+}
+export interface LocalBatchPreview { items: LocalBatchItem[]; signature: string; eligible_count: number }
+export interface LocalBatchStatus { id: string; status: string; items: LocalBatchItem[]; jobs: LocalJob[] }
+export interface PromptBatchItem {
+  photo_id: string; eligible: boolean; reason?: string; proposed_text?: string; previous_text?: string
+  allowance?: number; semantic_change_consent?: boolean; profile_id?: string
+}
+export interface PromptBatchPreview { items: PromptBatchItem[]; signature: string }
+export interface PreparedPrompt extends CompiledPrompt { approval_hash: string }
+
 export interface EditJob {
   id: string
   batch_id: string

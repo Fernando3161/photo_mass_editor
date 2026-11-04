@@ -1,6 +1,6 @@
 # V2 project plan — faster local editing and review
 
-Status: Priority 1 implementation on `dev/v2-01-local-pipeline` for owner review, 2026-11-02. The owner requested this work before the pending V1 release merge/tag and before the V1 visual signoff. This plan responds to the private `CRITICAL_EVALUATION_2026-11-02.local.md`; that report stays excluded from Git. V1 behavior and limitations remain documented in the V1 phase reports. Priorities 2–4 remain planned and are not implemented by this branch.
+Status: Priority 2 implementation on `dev/v2-02-batch-workflow` for owner review, 2026-11-02. The owner stated Priority 1 complete and authorized Priority 2. This plan responds to the private `CRITICAL_EVALUATION_2026-11-02.local.md`; that report stays excluded from Git. Priority 2 implementation and remaining owner acceptance checks are recorded in its report. Priorities 3–4 remain planned.
 
 ## Product outcome and boundaries
 

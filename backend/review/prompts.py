@@ -32,10 +32,13 @@ def detect_conflicts(*texts: str, allowance: int, semantic_change_consent: bool)
             conflicts.append(f"Conflicting instructions for {target}: preserve and change are both requested")
     if allowance > 3 and not semantic_change_consent:
         conflicts.append("AI allowance above 3 requires explicit semantic-change consent")
+    semantic_request = re.search(r"\b(remove|replace|invent|add|insert)\b[^.!?]{0,50}\b(people|person|face|sky|building|architecture|background|statue|sculpture|object)\b", combined)
+    if semantic_request and (allowance == 0 or not semantic_change_consent):
+        conflicts.append("Requested scene changes require nonzero allowance and explicit semantic-change consent")
     return conflicts
 
 
-def _snapshot(db: sqlite3.Connection, photo_id: str) -> tuple[dict[str, Any], sqlite3.Row, sqlite3.Row]:
+def _snapshot(db: sqlite3.Connection, photo_id: str, shared_instruction: str = "") -> tuple[dict[str, Any], sqlite3.Row, sqlite3.Row]:
     photo = db.execute(
         "SELECT id, sha256, revision, primary_subject_id FROM photos WHERE id = ?", (photo_id,)
     ).fetchone()
@@ -82,6 +85,7 @@ def _snapshot(db: sqlite3.Connection, photo_id: str) -> tuple[dict[str, Any], sq
         "ai_suggestion": draft["ai_suggestion_editable"],
         "user_instructions": draft["user_instructions"],
         "approved_constraints": draft["approved_constraints"],
+        "shared_instruction": shared_instruction,
         "analysis_run_id": draft["analysis_run_id"],
         "publication_profile": {
             **dict(profile),
@@ -99,6 +103,7 @@ def compile_text(snapshot: dict[str, Any]) -> tuple[str, list[str]]:
         snapshot["ai_suggestion"],
         snapshot["user_instructions"],
         snapshot["approved_constraints"],
+        snapshot.get("shared_instruction", ""),
         allowance=snapshot["ai_allowance"],
         semantic_change_consent=snapshot["semantic_change_consent"],
     )
@@ -125,6 +130,8 @@ def compile_text(snapshot: dict[str, Any]) -> tuple[str, list[str]]:
         parts.append(f"Owner instructions: {snapshot['user_instructions'].strip()}")
     if snapshot["approved_constraints"].strip():
         parts.append(f"Approved constraints: {snapshot['approved_constraints'].strip()}")
+    if snapshot.get("shared_instruction", "").strip():
+        parts.append(f"Selection instruction: {snapshot['shared_instruction'].strip()}")
     parts.append(f"Application AI allowance: {snapshot['ai_allowance']} of 10.")
     if not snapshot["semantic_change_consent"]:
         parts.append("Do not introduce semantic changes or new scene content.")
@@ -132,8 +139,8 @@ def compile_text(snapshot: dict[str, Any]) -> tuple[str, list[str]]:
     return "\n".join(parts), []
 
 
-def create_compiled_prompt(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
-    snapshot, photo, draft = _snapshot(db, photo_id)
+def create_compiled_prompt(db: sqlite3.Connection, photo_id: str, shared_instruction: str = "") -> dict[str, Any]:
+    snapshot, photo, draft = _snapshot(db, photo_id, shared_instruction)
     text, conflicts = compile_text(snapshot)
     if conflicts:
         raise PromptConflict(conflicts)
@@ -154,6 +161,7 @@ def create_compiled_prompt(db: sqlite3.Connection, photo_id: str) -> dict[str, A
          json.dumps(snapshot["publication_profile"], sort_keys=True),
          json.dumps(snapshot, sort_keys=True), text, now),
     )
+    db.execute("UPDATE compiled_prompts SET approved_for_job=0,approved_at=NULL WHERE photo_id=? AND id<>?", (photo_id, prompt_id))
     db.execute("UPDATE review_drafts SET compiled_prompt_stale=0 WHERE photo_id=?", (photo_id,))
     return get_prompt(db, prompt_id)
 
@@ -192,6 +200,7 @@ def revise_prompt(db: sqlite3.Connection, prompt_id: str, compiled_text: str) ->
          prior["publication_profile_snapshot_json"], prior["input_snapshot_json"],
          compiled_text.strip(), utc_now()),
     )
+    db.execute("UPDATE compiled_prompts SET approved_for_job=0,approved_at=NULL WHERE photo_id=? AND id<>?", (prior["photo_id"], new_id))
     return get_prompt(db, new_id)
 
 
@@ -211,6 +220,18 @@ def approve_prompt(db: sqlite3.Connection, prompt_id: str) -> dict[str, Any]:
             or current["publication_profile_id"] != prompt["publication_profile_id"]
             or current["compiled_prompt_stale"]):
         raise PromptConflict(["The photo or editing draft changed; compile a new prompt before approval"])
+    snapshot = json.loads(prompt["input_snapshot_json"])
+    baseline, conflicts = compile_text(snapshot)
+    conflicts += detect_conflicts(prompt["compiled_text"], snapshot["approved_constraints"],
+                                  allowance=snapshot["ai_allowance"],
+                                  semantic_change_consent=snapshot["semantic_change_consent"])
+    required = [line for line in baseline.splitlines() if line.startswith((
+        "Publication target:", "Approved constraints:", "Application AI allowance:",
+        "Do not introduce semantic changes", "Selection instruction:"))]
+    if any(line not in prompt["compiled_text"] for line in required):
+        conflicts.append("The edited prompt removed a required profile, instruction, allowance, or constraint")
+    if conflicts:
+        raise PromptConflict(list(dict.fromkeys(conflicts)))
     db.execute("UPDATE compiled_prompts SET approved_for_job=0, approved_at=NULL WHERE photo_id=?", (prompt["photo_id"],))
     db.execute(
         "UPDATE compiled_prompts SET approved_for_job=1, approved_at=? WHERE id=?", (utc_now(), prompt_id)

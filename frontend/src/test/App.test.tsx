@@ -41,6 +41,19 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: {
     if (url === '/api/export' && init?.method === 'POST') return Response.json({ export_id: 'export-one', directory: 'exports/export-one', directory_path: 'C:\\project\\data\\exports\\export-one', manifest: 'exports/export-one/manifest.json', cost_report: 'exports/export-one/cost_report.json', item_count: 1 })
     if (url === '/api/export/export-one/open-folder' && init?.method === 'POST') return Response.json({ opened: true })
     if (url === '/api/export/audit') return Response.json({ referenced_files: 4, missing: [], changed: [], source_issues: [], orphaned: [], invalid_manifests: [], invalid_cost_reports: [] })
+    if (url === '/api/local/recipes' && !init) return Response.json([])
+    if (url === '/api/local/batches/recent') return Response.json([])
+    if (url === '/api/local/batches/preview' && init?.method === 'POST') {
+      const ids: string[] = JSON.parse(String(init.body)).photo_ids
+      return Response.json({ signature: 'batch-preview-hash', eligible_count: ids.length, items: ids.map((photo_id) => ({ photo_id, eligible: true, revision: 0, settings: { preset_id: 'natural', levels_strength: .5, black_point: .01, white_point: .99, exposure_ev: .1, red_gain: 1, blue_gain: 1, shadow_lift: .1, highlight_compression: .1, denoise: 0, sharpen: .1, straighten_deg: 0, lens_k1: 0, perspective_vertical: 0, crop: [0, 0, 1, 1] }, operations: ['exposure_ev'], output_targets: ['full-resolution PNG master', 'website JPEG'] })) })
+    }
+    if (url === '/api/local/batches' && init?.method === 'POST') return Response.json({ id: 'batch-local', status: 'COMPLETED', items: [], jobs: [{ id: 'local-one', photo_id: 'one', status: 'SUCCEEDED', image_version_id: 'v1', error: null }] })
+    if (url === '/api/prompt-batches/preview' && init?.method === 'POST') {
+      const ids: string[] = JSON.parse(String(init.body)).photo_ids
+      return Response.json({ signature: 'prompt-preview-hash', items: ids.map((photo_id) => ({ photo_id, eligible: true, previous_text: '', proposed_text: 'Keep the scene authentic.', profile_id: 'website-standard-v1', allowance: 0, semantic_change_consent: false })) })
+    }
+    if (url === '/api/prompt-batches/compile' && init?.method === 'POST') return Response.json({ prompts: JSON.parse(String(init.body)).photo_ids.map((photo_id: string) => ({ id: `prompt-${photo_id}`, photo_id, version_number: 1, compiled_text: 'Keep the scene authentic.', approval_hash: `hash-${photo_id}` })) })
+    if (url === '/api/prompt-batches/approve' && init?.method === 'POST') return Response.json({ prompts: [] })
     if (url.endsWith('/local-recommendation') || url.includes('/local-recommendation?')) return Response.json({ photo_id: url.includes('/two/') ? 'two' : 'one', photo_revision: 0, preset_id: 'natural', preset_name: 'Natural', presets: [{ id: 'natural', name: 'Natural' }], analysis_version: 'test', measurements: { luminance_p01: .1, luminance_median: .5, luminance_p99: .9, geometry_note: 'Manual geometry only.', white_balance_note: 'Conservative balance.' }, settings: { preset_id: 'natural', levels_strength: .5, black_point: .01, white_point: .99, exposure_ev: .1, red_gain: 1, blue_gain: 1, shadow_lift: .1, highlight_compression: .1, denoise: 0, sharpen: .1, straighten_deg: 0, lens_k1: 0, perspective_vertical: 0, crop: [0, 0, 1, 1] } })
     if (url.endsWith('/local-preview') && init?.method === 'POST') {
       if (edit?.localPreview) return edit.localPreview(JSON.parse(String(init.body)))
@@ -56,6 +69,7 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: {
       return Response.json({ jobs: [{ id: 'job-one', batch_id: 'batch-one', photo_id: 'one', compiled_prompt_id: 'prompt-one', engine: 'DETERMINISTIC', model: null, status: 'QUEUED', error: null, image_version_id: null, estimated_cost_usd: 0, actual_cost_usd: 0, created_at: 'now', started_at: null, completed_at: null }] })
     }
     if (url === '/api/edit/batches/batch-one') return Response.json({ jobs: [{ id: 'job-one', batch_id: 'batch-one', photo_id: 'one', compiled_prompt_id: 'prompt-one', engine: 'DETERMINISTIC', model: null, status: 'SUCCEEDED', error: null, image_version_id: 'version-one', estimated_cost_usd: 0, actual_cost_usd: 0, created_at: 'now', started_at: 'now', completed_at: 'now' }] })
+    if (url === '/api/photos/one/versions/pending-one/review' && init?.method === 'POST') return Response.json({ id: 'pending-one', review_status: JSON.parse(String(init.body)).decision })
     if (url.startsWith('/api/photos/') && init?.method === 'PATCH') {
       if (saveGate) await saveGate
       if (saveFails) return Response.json({ detail: 'Database unavailable' }, { status: 500 })
@@ -383,5 +397,62 @@ describe('review workstation', () => {
     releaseBatch()
     await waitFor(() => expect(screen.getByText(/1 job queued/)).toBeTruthy())
     expect(start.disabled).toBe(true)
+  })
+
+  it('selects photos in the contact sheet and previews a local batch before queueing', async () => {
+    const fetchMock = mockFetch()
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByText('first.jpg')
+    await user.keyboard('g')
+    await user.click(screen.getByRole('button', { name: 'Select visible' }))
+    expect(screen.getByText('2 selected')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Review selection in batch' }))
+    expect(await screen.findByText('Selected photos (2)')).toBeTruthy()
+    const start = screen.getByRole('button', { name: 'Apply recipe to eligible selection' }) as HTMLButtonElement
+    expect(start.disabled).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Preview local batch' }))
+    await screen.findByText(/2 eligible/)
+    expect(start.disabled).toBe(true)
+    await user.click(screen.getByLabelText('I authorize this local batch run'))
+    expect(start.disabled).toBe(false)
+    await user.click(start)
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url) === '/api/local/batches' && init?.method === 'POST' && JSON.parse(String(init.body)).preview_signature === 'batch-preview-hash')).toBe(true))
+  })
+
+  it('requires individual prompt diff acknowledgment and keeps paid execution separate', async () => {
+    const fetchMock = mockFetch()
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByText('first.jpg')
+    await user.keyboard('g')
+    await user.click(screen.getByRole('button', { name: 'Select visible' }))
+    await user.click(screen.getByRole('button', { name: 'Review selection in batch' }))
+    await user.selectOptions(screen.getByLabelText('Batch task'), 'PROMPTS')
+    await user.click(screen.getByRole('button', { name: 'Preview per-photo prompt diffs' }))
+    const compile = screen.getByRole('button', { name: 'Compile acknowledged prompts' }) as HTMLButtonElement
+    expect(compile.disabled).toBe(true)
+    const checks = await screen.findAllByLabelText("I reviewed this photo's prompt diff")
+    await user.click(checks[0])
+    expect(compile.disabled).toBe(true)
+    await user.click(checks[1])
+    await user.click(compile)
+    expect(await screen.findByRole('button', { name: 'Approve these 2 prompts' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Approve these 2 prompts' }))
+    expect(fetchMock.mock.calls.filter(([url]) => String(url) === '/api/edit/batches')).toHaveLength(0)
+  })
+
+  it('scopes approve-and-next shortcut to the active editing tab', async () => {
+    const versions: ImageVersion[] = [{ id: 'pending-one', version_number: 1, review_status: 'PENDING', created_at: 'now', width: 1200, height: 800, reviewed_at: null, rejection_reason: null, replacement_of_version_id: null, superseded_by_version_id: null, superseded_at: null, image_url: '/pending.jpg' }]
+    const fetchMock = mockFetch(false, undefined, { versions })
+    render(<App />)
+    await screen.findByText('first.jpg')
+    fireEvent.keyDown(window, { key: 'a' })
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/review'))).toHaveLength(0)
+    fireEvent.click(screen.getByRole('tab', { name: 'Editing and versions' }))
+    await screen.findByRole('button', { name: 'Approve and next (A)' })
+    fireEvent.keyDown(window, { key: 'a' })
+    await waitFor(() => expect(fetchMock.mock.calls.filter(([url]) => String(url) === '/api/photos/one/versions/pending-one/review')).toHaveLength(1))
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url) === '/api/photos/two')).toBe(true))
   })
 })

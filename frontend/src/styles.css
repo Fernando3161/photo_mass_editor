@@ -153,6 +153,12 @@ kbd { display: inline-block; min-width: 21px; margin-right: 3px; padding: 2px 5p
 .contact-card span { padding-left: 9px; color: var(--accent); font-size: 11px; }
 .contact-card strong { overflow: hidden; padding-right: 9px; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .contact-card small { grid-column: 1 / -1; padding: 0 9px; color: var(--muted); text-transform: capitalize; }
+.contact-selection-tools { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 14px; }
+.contact-selection-tools button { min-height: 30px; padding: 5px 9px; }
+.contact-card { display: block; padding: 0; }
+.contact-card.is-batch-selected { border-color: var(--accent); }
+.contact-card > button { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; width: 100%; padding: 0 0 10px; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+.contact-select { display: flex; align-items: center; gap: 5px; padding: 6px 9px; font-size: 11px; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(0,0,0,.72); }
 .preset-dialog { display: grid; gap: 15px; width: min(540px, 90vw); padding: 24px; border: 1px solid #4b554c; border-radius: 10px; background: var(--panel-raised); box-shadow: 0 25px 100px #000; }
 .preset-dialog h2 { margin: -7px 0 0; font-family: Georgia, 'Times New Roman', serif; }
@@ -216,6 +222,19 @@ kbd { display: inline-block; min-width: 21px; margin-right: 3px; padding: 2px 5p
 .edit-panel-header h3 { margin: 0; font-size: 16px; }
 .edit-panel-header .eyebrow { margin-bottom: 2px; font-size: 8px; }
 .edit-panel-header .phase-chip { font-size: 8px; }
+.edit-mode-tools { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.batch-results { display: flex; flex-direction: column; }
+.batch-results .edit-preview { flex: 1 1 auto; }
+.batch-results li { margin: 8px 0; }
+.batch-item-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.batch-item-actions input { width: 70px; }
+.batch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; margin-top: 8px; }
+.batch-card { display: grid; align-content: start; gap: 5px; padding: 7px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel-raised); }
+.batch-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.batch-card small { overflow-wrap: anywhere; }
+.batch-item-actions > details { width: 100%; }
+.batch-tune-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-top: 7px; }
+.batch-tune-grid input { width: 100%; }
 .operation-select { align-self: center; }
 .edit-workbench { display: grid; grid-template-columns: minmax(280px, .9fr) minmax(320px, 1.1fr); min-width: 0; min-height: 0; overflow: hidden; }
 .local-corrections { min-height: 0; }

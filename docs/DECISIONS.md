@@ -90,6 +90,12 @@ The owner requested V2 Priority 1 before V1 release signoff. Local deterministic
 
 An approved version remains the publication choice until the owner explicitly creates and approves a replacement. Local and generative jobs store the exact approved version they target and fail if it changes before completion. The candidate begins PENDING. Final **Approve and replace current** runs in one transaction: the new version becomes APPROVED, the previous approval receives supersession metadata and is exposed as SUPERSEDED, and both immutable files and review events remain. Rejection leaves the prior approval active. The stored status of a superseded row uses the existing non-current `REJECTED` value plus explicit supersession fields, avoiding a destructive SQLite table rebuild while keeping the partial unique APPROVED index and existing export queries correct.
 
+## ADR-024 — Per-photo batch receipts and prompt acknowledgment (2026-11-02)
+
+V2 Priority 2 retains the existing source-based single-photo local recipe/job as the unit of image provenance. A batch snapshots selection and settings and links independent jobs; it never owns or approves image bytes. The two-worker executor bounds concurrent renders. Queued batch jobs resume on startup because deterministic local rendering has no provider charge; interrupted running jobs fail for inspection, and paid generative calls retain their no-auto-resume rule. Cancellation marks only queued local jobs. Alternative: a single all-or-nothing render transaction; this would discard successful versions when one source fails and would obscure per-photo recovery.
+
+Named recipes are immutable settings snapshots, and an owner can override a selected photo's recommendation before previewing. A preview signature covers per-photo source identity, profile, settings, eligibility and replacement intent. Batch prompt preparation similarly requires visible per-photo previous/proposed text and acknowledgment before creating immutable prompt versions. Prompt approval rechecks current photo/draft identity, required constraints and semantic-change policy; paid image editing still has a separate 20-photo preview, budget and current-run authorization. No batch action grants image approval.
+
 ## Governance
 
 These Phase 00 recommendations require owner approval; record any changed decision, consequences, date and linked phase/PR here. Development agents leave decision changes unstaged and uncommitted; the owner manually stages and commits them after review. Automatic commits are forbidden.

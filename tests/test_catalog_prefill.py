@@ -238,7 +238,7 @@ class CatalogPrefillTests(unittest.TestCase):
             db.close()
         db = connect(folder)
         try:
-            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 10)
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 11)
             self.assertEqual(db.execute("SELECT display_name FROM subjects WHERE id='legacy'").fetchone()[0], "Legacy subject")
             self.assertIsNotNone(db.execute("SELECT name FROM sqlite_master WHERE name='exports'").fetchone())
             self.assertEqual(db.execute("PRAGMA integrity_check").fetchone()[0], "ok")

@@ -65,6 +65,8 @@ export default function App() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved')
   const [error, setError] = useState('')
   const [gridOpen, setGridOpen] = useState(false)
+  const [batchSelectedIds, setBatchSelectedIds] = useState<string[]>([])
+  const [batchOpen, setBatchOpen] = useState(false)
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('details')
   const [presetEdit, setPresetEdit] = useState<Preset | null>(null)
   const [loading, setLoading] = useState(true)
@@ -415,7 +417,7 @@ export default function App() {
               <PromptPanel estimate={analysisEstimate} analysisAuthorized={analysisAuthorized} busy={phase3Busy} prompt={prompt} promptText={promptText} promptHistory={photo.prompt_history || []} onEstimate={() => void estimateCurrentAnalysis()} onAuthorized={setAnalysisAuthorized} onRunAnalysis={() => void runCurrentAnalysis()} onCompile={() => void compilePrompt()} onPromptText={setPromptText} onSavePrompt={() => void savePromptVersion()} onApprovePrompt={() => void approveCurrentPrompt()} />
             </div>
             <div className="work-pane work-pane-editing" role="tabpanel" id="pane-editing" aria-labelledby="tab-editing" hidden={workspaceTab !== 'editing'}>
-              <EditPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} selectedVersionId={selectedVersionId} onSelectVersion={setSelectedVersionId} onBeforeRun={() => saveNow()} onRefresh={refreshCurrentPhoto} />
+              <EditPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} batchSelectedIds={batchSelectedIds} catalogPhotos={photos} batchOpen={batchOpen} onBatchOpen={setBatchOpen} selectedVersionId={selectedVersionId} onSelectVersion={setSelectedVersionId} onBeforeRun={() => saveNow()} onRefresh={refreshCurrentPhoto} onReviewNext={() => move(1)} active={workspaceTab === 'editing' && !gridOpen} />
             </div>
             <div className="work-pane" role="tabpanel" id="pane-export" aria-labelledby="tab-export" hidden={workspaceTab !== 'export'}>
               <ExportPanel />
@@ -424,7 +426,7 @@ export default function App() {
         </> : <div className="center-message"><p>Select a photo to begin.</p></div>}
       </main>
       <footer className="shortcut-bar"><span><kbd>←</kbd><kbd>→</kbd> Navigate</span><span><kbd>G</kbd> Contact sheet</span><span>Changes save automatically</span></footer>
-      {gridOpen && <ContactSheet photos={filtered} onClose={() => setGridOpen(false)} onSelect={(id) => { void selectPhoto(id); setGridOpen(false) }} />}
+      {gridOpen && <ContactSheet photos={filtered} selectedIds={batchSelectedIds} onToggle={(id) => setBatchSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} onSelectVisible={() => setBatchSelectedIds((current) => [...new Set([...current, ...filtered.map((item) => item.id)])])} onClearSelection={() => setBatchSelectedIds([])} onOpenBatch={() => { setGridOpen(false); setWorkspaceTab('editing'); setBatchOpen(true) }} onClose={() => setGridOpen(false)} onSelect={(id) => { void selectPhoto(id); setGridOpen(false) }} />}
       {presetEdit && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="preset-title"><div className="preset-dialog"><p className="eyebrow">Draft configuration</p><h2 id="preset-title">Edit preset</h2><label><span>Name</span><input value={presetEdit.name} onChange={(event) => setPresetEdit({ ...presetEdit, name: event.target.value })} /></label><label><span>Transparent instructions</span><textarea rows={7} value={presetEdit.structured_instructions} onChange={(event) => setPresetEdit({ ...presetEdit, structured_instructions: event.target.value })} /></label><p>Preset wording is saved locally and versioned. It does not run an edit.</p><div className="dialog-actions"><button className="button-secondary" type="button" onClick={() => setPresetEdit(null)}>Cancel</button><button className="button-primary" type="button" onClick={() => void savePreset()}>Save preset</button></div></div></div>}
     </div>
   )

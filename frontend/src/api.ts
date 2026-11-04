@@ -1,4 +1,4 @@
-import type { AnalysisEstimate, AnalysisRun, CatalogSuggestion, CompiledPrompt, EditJob, EditPreview, ImageVersion, LocalJob, LocalRecommendation, LocalSettings, LocationPreview, Options, PhotoDetail, PhotoSummary, Preset, SavePayload, VisitedCity } from './types'
+import type { AnalysisEstimate, AnalysisRun, CatalogSuggestion, CompiledPrompt, EditJob, EditPreview, ImageVersion, LocalJob, LocalRecommendation, LocalSettings, LocalBatchPreview, LocalBatchStatus, NamedLocalRecipe, PreparedPrompt, PromptBatchPreview, LocationPreview, Options, PhotoDetail, PhotoSummary, Preset, SavePayload, VisitedCity } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init)
@@ -30,6 +30,28 @@ export const api = {
   }),
   localJobs: (photoId: string) => request<{ jobs: LocalJob[] }>(`/api/photos/${photoId}/local-edits`),
   localJob: (jobId: string) => request<LocalJob>(`/api/local/jobs/${jobId}`),
+  namedLocalRecipes: () => request<NamedLocalRecipe[]>('/api/local/recipes'),
+  saveNamedLocalRecipe: (name: string, settings: LocalSettings) => request<NamedLocalRecipe>('/api/local/recipes', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, settings }),
+  }),
+  previewLocalBatch: (photoIds: string[], recipeId: string | null, overrides: Record<string, LocalSettings>, retryOverride: boolean, replaceApproved: boolean) => request<LocalBatchPreview>('/api/local/batches/preview', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photo_ids: photoIds, recipe_id: recipeId, overrides, retry_override: retryOverride, replace_approved: replaceApproved }),
+  }),
+  runLocalBatch: (photoIds: string[], recipeId: string | null, overrides: Record<string, LocalSettings>, retryOverride: boolean, replaceApproved: boolean, previewSignature: string) => request<LocalBatchStatus>('/api/local/batches', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photo_ids: photoIds, recipe_id: recipeId, overrides, retry_override: retryOverride, replace_approved: replaceApproved, preview_signature: previewSignature, request_key: crypto.randomUUID(), authorized: true }),
+  }),
+  localBatch: (id: string) => request<LocalBatchStatus>(`/api/local/batches/${id}`),
+  recentLocalBatches: () => request<LocalBatchStatus[]>('/api/local/batches/recent'),
+  cancelLocalBatch: (id: string) => request<LocalBatchStatus>(`/api/local/batches/${id}/cancel`, { method: 'POST' }),
+  previewPromptBatch: (photoIds: string[], sharedInstruction: string) => request<PromptBatchPreview>('/api/prompt-batches/preview', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photo_ids: photoIds, shared_instruction: sharedInstruction }),
+  }),
+  compilePromptBatch: (photoIds: string[], sharedInstruction: string, signature: string, acknowledgedIds: string[]) => request<{ prompts: PreparedPrompt[] }>('/api/prompt-batches/compile', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photo_ids: photoIds, shared_instruction: sharedInstruction, preview_signature: signature, acknowledged_ids: acknowledgedIds }),
+  }),
+  approvePromptBatch: (prompts: PreparedPrompt[]) => request<{ prompts: CompiledPrompt[] }>('/api/prompt-batches/approve', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expected: Object.fromEntries(prompts.map((prompt) => [prompt.id, prompt.approval_hash])) }),
+  }),
   previewExport: () => request<{ target: string; approved_count: number; items: { photo_id: string; version_id: string; width: number; height: number; sha256: string; location_included: boolean }[] }>('/api/export/preview'),
   recentExports: () => request<{ export_id: string; created_at: string; item_count: number; directory_path: string }[]>('/api/export/history'),
   createExport: () => request<{ export_id: string; directory: string; directory_path: string; manifest: string; cost_report: string; item_count: number }>('/api/export', {

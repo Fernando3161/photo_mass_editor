@@ -27,6 +27,8 @@ from backend.catalog.database import connect
 from .analysis import AnalysisProvider, AnalysisUnavailable, UnavailableAnalysisProvider
 from .analysis_service import estimate_analysis, run_analysis
 from . import local_corrections as local
+from . import local_batch
+from . import prompt_batch
 from .prompts import PromptConflict, approve_prompt, create_compiled_prompt, revise_prompt
 from .editing import (
     EditConflict, EditProvider, batch_jobs, cancel_job, enqueue_batch,
@@ -111,6 +113,33 @@ class LocalPreviewRequest(BaseModel):
     settings: dict
 
 
+class NamedLocalRecipe(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    settings: dict
+
+
+class LocalBatchRequest(BaseModel):
+    photo_ids: list[str] = Field(min_length=1, max_length=200)
+    recipe_id: str | None = None
+    overrides: dict[str, dict] = Field(default_factory=dict)
+    retry_override: bool = False
+    replace_approved: bool = False
+    preview_signature: str = ""
+    request_key: str = Field(default_factory=lambda: uuid4().hex)
+    authorized: bool = False
+
+
+class PromptBatchRequest(BaseModel):
+    photo_ids: list[str] = Field(min_length=1, max_length=200)
+    shared_instruction: str = Field(default="", max_length=2000)
+    preview_signature: str = ""
+    acknowledged_ids: list[str] = Field(default_factory=list)
+
+
+class PromptBatchApproval(BaseModel):
+    expected: dict[str, str]
+
+
 class ReviewDecision(BaseModel):
     decision: Literal["APPROVED", "REJECTED"]
     reason: str | None = Field(default=None, max_length=1000)
@@ -165,7 +194,8 @@ def create_app(
     async def lifespan(_app: FastAPI):
         if (root / "catalog.sqlite").is_file():
             recover_jobs(root, editor, executor)
-            local.recover_jobs(root)
+            for job_id in local_batch.resume_queued(root):
+                executor.submit(local.run_job, root, job_id)
         yield
         executor.shutdown(wait=True, cancel_futures=True)
 
@@ -508,6 +538,28 @@ def create_app(
         finally:
             db.close()
 
+    @app.post("/api/prompt-batches/preview")
+    def preview_prompts(payload: PromptBatchRequest) -> dict:
+        try:
+            return prompt_batch.preview(root, payload.photo_ids, payload.shared_instruction)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/prompt-batches/compile")
+    def compile_prompts(payload: PromptBatchRequest) -> dict:
+        try:
+            return {"prompts": prompt_batch.compile_selected(root, payload.photo_ids,
+                payload.shared_instruction, payload.preview_signature, payload.acknowledged_ids)}
+        except (ValueError, PromptConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/prompt-batches/approve")
+    def approve_prompts(payload: PromptBatchApproval) -> dict:
+        try:
+            return {"prompts": prompt_batch.approve_selected(root, payload.expected)}
+        except (ValueError, PromptConflict) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.post("/api/edit/preview")
     def edit_preview(payload: EditBatch) -> dict:
         try:
@@ -548,6 +600,57 @@ def create_app(
             raise HTTPException(status_code=404, detail="Photo not found") from exc
         except (local.LocalCorrectionError, ImageIntegrityError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/local/recipes")
+    def named_local_recipes() -> list[dict]:
+        return local_batch.named_recipes(root)
+
+    @app.post("/api/local/recipes")
+    def save_local_recipe(payload: NamedLocalRecipe) -> dict:
+        try:
+            return local_batch.save_named_recipe(root, payload.name, payload.settings)
+        except local.LocalCorrectionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/local/batches/preview")
+    def preview_local_batch(payload: LocalBatchRequest) -> dict:
+        try:
+            return local_batch.preview(root, payload.photo_ids, payload.recipe_id, payload.overrides,
+                                       payload.retry_override, payload.replace_approved)
+        except local.LocalCorrectionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/local/batches")
+    def create_local_batch(payload: LocalBatchRequest) -> dict:
+        if not payload.authorized:
+            raise HTTPException(status_code=403, detail="Authorize this local batch for the current run")
+        try:
+            batch = local_batch.enqueue(root, payload.photo_ids, payload.request_key, payload.preview_signature,
+                                        payload.recipe_id, payload.overrides, payload.retry_override, payload.replace_approved)
+            for job in batch["jobs"]:
+                if job["status"] == "QUEUED":
+                    executor.submit(local.run_job, root, job["id"])
+            return batch
+        except local.LocalCorrectionError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/local/batches/recent")
+    def recent_local_batches() -> list[dict]:
+        return local_batch.recent_batches(root)
+
+    @app.get("/api/local/batches/{batch_id}")
+    def get_local_batch(batch_id: str) -> dict:
+        try:
+            return local_batch.batch_status(root, batch_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Local batch not found") from exc
+
+    @app.post("/api/local/batches/{batch_id}/cancel")
+    def cancel_local_batch(batch_id: str) -> dict:
+        try:
+            return local_batch.cancel(root, batch_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Local batch not found") from exc
 
     @app.get("/api/photos/{photo_id}/local-edits")
     def local_edits(photo_id: str) -> dict:

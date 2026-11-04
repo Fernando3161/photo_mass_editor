@@ -2,7 +2,7 @@ name: Photo Mass Editor checks
 
 on:
   push:
-    branches: ["main", "dev/v1-phase-07-release-cleanup"]
+    branches: ["main", "dev/v1-phase-07-release-cleanup", "dev/v2-02-batch-workflow"]
   pull_request:
 
 jobs:
