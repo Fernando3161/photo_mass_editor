@@ -1,0 +1,185 @@
+"""Phase 02 review API tests use only synthetic images and temporary catalogs."""
+
+from pathlib import Path
+import tempfile
+import unittest
+
+from fastapi.testclient import TestClient
+from PIL import Image
+
+from backend.catalog.database import connect
+from backend.catalog.ingestion import import_photo, sha256
+from backend.review.app import create_app
+
+
+class ReviewApiTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.data = self.root / "data"
+        self.source = self.root / "source.jpg"
+        Image.new("RGB", (40, 24), "#8b5a2b").save(self.source)
+        self.source_hash = sha256(self.source)
+        self.photo_id = import_photo(self.data, self.source)["id"]
+        self.client = TestClient(create_app(self.data))
+
+    def payload(self, revision=0, **updates):
+        values = {
+            "expected_revision": revision,
+            "editorial_description": "Stone facade in warm light",
+            "city": "Test City",
+            "country": "Test Country",
+            "primary_subject": "Architecture",
+            "content_tags": ["facade", "stone"],
+            "condition_tags": ["golden hour"],
+            "preset_id": "architecture-clarity",
+            "publication_profile_id": "website-standard-v1",
+            "ai_allowance": 2,
+            "ai_suggestion_editable": "",
+            "user_instructions": "Preserve the masonry texture",
+            "review_state": "IN_PROGRESS",
+        }
+        values.update(updates)
+        return values
+
+    def test_list_detail_and_media_do_not_expose_private_coordinates(self):
+        listed = self.client.get("/api/photos")
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(listed.json()[0]["id"], self.photo_id)
+        detail = self.client.get(f"/api/photos/{self.photo_id}")
+        self.assertEqual(detail.status_code, 200)
+        self.assertNotIn("private_lat", detail.json())
+        self.assertNotIn("private_lon", detail.json())
+        self.assertNotIn("source_hash", detail.text)
+        self.assertIn("gps_present", detail.json())
+        thumbnail = self.client.get(f"/api/photos/{self.photo_id}/thumbnail")
+        self.assertEqual(thumbnail.status_code, 200)
+        self.assertEqual(thumbnail.headers["content-type"], "image/png")
+        original = self.client.get(f"/api/photos/{self.photo_id}/original")
+        self.assertEqual(original.status_code, 200)
+        self.assertEqual(sha256(self.source), self.source_hash)
+
+    def test_lan_password_protects_media_and_writes(self):
+        import base64
+        from unittest.mock import patch
+
+        with patch.dict("os.environ", {"PHOTO_EDITOR_ALLOWED_HOSTS": "192.168.1.20"}):
+            client = TestClient(create_app(self.data, access_password="test-secret"), base_url="http://192.168.1.20:8000")
+        self.assertEqual(client.get(f"/api/photos/{self.photo_id}/original").status_code, 401)
+        auth = "Basic " + base64.b64encode(b"owner:test-secret").decode()
+        self.assertEqual(client.get("/api/health", headers={"Host": "attacker.example", "Authorization": auth}).status_code, 400)
+        allowed = client.get(f"/api/photos/{self.photo_id}/original", headers={"Authorization": auth})
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(allowed.headers["cache-control"], "no-store")
+        self.assertEqual(allowed.headers["x-frame-options"], "DENY")
+        self.assertEqual(client.get(f"/api/photos/{self.photo_id}/original", headers={
+            "Authorization": auth, "Sec-Fetch-Site": "cross-site",
+        }).status_code, 403)
+        self.assertEqual(client.patch(f"/api/photos/{self.photo_id}", json=self.payload(), headers={
+            "Authorization": auth,
+        }).status_code, 403)
+        blocked = client.patch(f"/api/photos/{self.photo_id}", json=self.payload(), headers={
+            "Authorization": auth, "Origin": "http://attacker.example:8000",
+        })
+        self.assertEqual(blocked.status_code, 403)
+        saved = client.patch(f"/api/photos/{self.photo_id}", json=self.payload(), headers={
+            "Authorization": auth, "Origin": "http://192.168.1.20:8000",
+        })
+        self.assertEqual(saved.status_code, 200)
+
+    def test_oversized_mask_is_rejected_before_image_processing(self):
+        response = self.client.post(f"/api/photos/{self.photo_id}/masks", content=b"x" * (4 * 1024 * 1024))
+        self.assertEqual(response.status_code, 413)
+
+    def test_metadata_tags_draft_and_review_state_persist(self):
+        saved = self.client.patch(f"/api/photos/{self.photo_id}", json=self.payload())
+        self.assertEqual(saved.status_code, 200, saved.text)
+        item = saved.json()
+        self.assertEqual(item["revision"], 1)
+        self.assertEqual(item["primary_subject"], "Architecture")
+        self.assertEqual({tag["display_name"] for tag in item["tags"]}, {"facade", "stone", "golden hour"})
+        self.assertEqual(item["draft"]["preset_id"], "architecture-clarity")
+        self.assertEqual(item["draft"]["publication_profile_id"], "website-standard-v1")
+        self.assertEqual(item["draft"]["user_instructions"], "Preserve the masonry texture")
+        reloaded = self.client.get(f"/api/photos/{self.photo_id}").json()
+        self.assertEqual(reloaded["editorial_description"], "Stone facade in warm light")
+        self.assertEqual(reloaded["review_state"], "IN_PROGRESS")
+        self.assertEqual(sha256(self.source), self.source_hash)
+
+    def test_stale_save_returns_conflict_without_losing_first_save(self):
+        first = self.client.patch(f"/api/photos/{self.photo_id}", json=self.payload())
+        self.assertEqual(first.status_code, 200)
+        stale = self.client.patch(
+            f"/api/photos/{self.photo_id}",
+            json=self.payload(editorial_description="Overwritten by stale browser"),
+        )
+        self.assertEqual(stale.status_code, 409)
+        current = self.client.get(f"/api/photos/{self.photo_id}").json()
+        self.assertEqual(current["editorial_description"], "Stone facade in warm light")
+
+    def test_reviewed_status_and_editable_presets(self):
+        saved = self.client.patch(
+            f"/api/photos/{self.photo_id}", json=self.payload(review_state="REVIEWED")
+        )
+        self.assertEqual(saved.json()["review_state"], "REVIEWED")
+        db = connect(self.data)
+        try:
+            row = db.execute("SELECT metadata_reviewed_at FROM photos WHERE id = ?", (self.photo_id,)).fetchone()
+            self.assertIsNotNone(row["metadata_reviewed_at"])
+        finally:
+            db.close()
+        preset = self.client.patch(
+            "/api/presets/natural-balance",
+            json={"name": "My natural preset", "structured_instructions": "Keep colors restrained."},
+        )
+        self.assertEqual(preset.status_code, 200)
+        self.assertEqual(preset.json()["version"], 2)
+        options = self.client.get("/api/options").json()
+        self.assertIn("My natural preset", [item["name"] for item in options["presets"]])
+
+    def test_options_suggest_catalog_tags_and_places_without_coordinates(self):
+        saved = self.client.patch(f"/api/photos/{self.photo_id}", json=self.payload())
+        self.assertEqual(saved.status_code, 200, saved.text)
+        city = self.client.post("/api/catalog/cities", json={
+            "city": "Budapest", "country": "Hungary", "latitude": 47.507,
+            "longitude": 19.045, "radius_km": 25,
+        })
+        self.assertEqual(city.status_code, 200, city.text)
+        options = self.client.get("/api/options")
+        self.assertEqual(options.status_code, 200, options.text)
+        body = options.json()
+        self.assertIn("Test City", body["cities"])
+        self.assertIn("Budapest", body["cities"])
+        self.assertIn("Test Country", body["countries"])
+        self.assertIn("Hungary", body["countries"])
+        self.assertIn("facade", [tag["display_name"] for tag in body["tags"] if tag["kind"] == "CONTENT"])
+        self.assertIn("golden hour", [tag["display_name"] for tag in body["tags"] if tag["kind"] == "CONDITION"])
+        self.assertNotIn("latitude", options.text)
+        self.assertNotIn("longitude", options.text)
+        self.assertNotIn("47.507", options.text)
+
+    def test_schema_has_eight_presets_and_repeat_startup_preserves_owner_edits(self):
+        db = connect(self.data)
+        try:
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 14)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM presets").fetchone()[0], 8)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM publication_profiles").fetchone()[0], 1)
+        finally:
+            db.close()
+        edited = self.client.patch(
+            "/api/presets/natural-balance",
+            json={"name": "My natural preset", "structured_instructions": "My own wording."},
+        )
+        self.assertEqual(edited.status_code, 200)
+        db = connect(self.data)
+        try:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM presets").fetchone()[0], 8)
+            row = db.execute("SELECT name, version, structured_instructions FROM presets WHERE id='natural-balance'").fetchone()
+            self.assertEqual(tuple(row), ("My natural preset", 2, "My own wording."))
+        finally:
+            db.close()
+
+
+if __name__ == "__main__":
+    unittest.main()

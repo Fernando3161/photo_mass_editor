@@ -1,0 +1,93 @@
+
+# PRE-APPROVED TRAVEL PHOTO VOCABULARY
+# Canonical labels, stored in English.
+# Owner-editable and extensible.
+
+primary_subject:
+  people:
+    - person
+    - {name: group, aliases: [a group of people]}
+    - {name: crowd, aliases: [a crowd of people]}
+
+  architecture_and_history:
+    - {name: building, aliases: [a building facade, a traditional building]}
+    - {name: religious building, aliases: [a church or cathedral, a temple or shrine building]}
+    - palace
+    - castle or fortress
+    - tower
+    - bridge
+    - monument
+    - {name: archaeological ruins, aliases: [an archaeological site]}
+    - sculpture
+    - {name: artwork, aliases: [a painting in a museum]}
+    - {name: museum artifact, aliases: [an object displayed inside a museum]}
+
+  urban_and_daily_life:
+    - street
+    - square
+    - market
+    - skyline
+    - harbor
+    - food
+    - {name: souvenir, aliases: [a souvenir for sale in a shop]}
+
+  nature_and_landscapes:
+    - {name: mountain, aliases: [a mountain landscape]}
+    - valley
+    - forest
+    - garden
+    - beach
+    - coastline
+    - river
+    - lake
+    - waterfall
+    - desert
+
+  animals_and_transport:
+    - cat
+    - dog
+    - {name: other animal, aliases: [a wildlife photograph]}
+    - boat
+    - train
+    - vehicle
+
+content_tags:
+  - {name: architecture, aliases: [buildings and architecture]}
+  - archaeology
+  - heritage
+  - religion
+  - {name: museum, aliases: [objects displayed inside a museum]}
+  - art
+  - culture
+  - performance
+  - {name: people, aliases: [people in the scene]}
+  - animals
+  - urban
+  - street life
+  - interior
+  - {name: landscape, aliases: [a scenic landscape]}
+  - nature
+  - geology
+  - water
+  - coast
+  - food
+  - markets
+  - transport
+  - infrastructure
+  - {name: souvenirs, aliases: [souvenirs for sale in a shop]}
+
+condition_tags:
+  - {name: daytime, aliases: [a daylight photograph outdoors]}
+  - {name: nighttime, aliases: [a night photograph outdoors]}
+  - golden hour
+  - twilight
+  - overcast
+  - backlit
+  - low light
+  - harsh shadows
+  - hazy
+  - blurred
+  - high contrast
+  - rainy
+  - snowy
+  - reflections
