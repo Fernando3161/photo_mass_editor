@@ -10,6 +10,18 @@ Current release: **V1.0.0**. See [release notes and known limits](docs/V1_RELEAS
 
 These small, metadata-free previews come from the owner's photo 15 trial. The edit adjusts perspective and removes people; it is a generated interpretation, not documentary evidence of an empty scene. Full-size photographs are not in this repository.
 
+### Japan garden — AI reimagining 1/10
+
+**Before — original photograph**
+
+![Original Japan garden photograph](docs/assets/japan_garden_before.jpg)
+
+**After — owner-approved generative edit**
+
+![Approved AI edit of the Japan garden photograph](docs/assets/japan_garden_after.jpg)
+
+These downscaled, metadata-free previews show an approved generative edit made with the application's AI reimagining allowance set to **1/10**. The allowance is an internal application setting, not a guarantee that every detail remains unchanged. Full-size photographs are not in this repository.
+
 ## Quick start on Windows
 
 Install [Python 3.11+](https://www.python.org/downloads/) and [Node.js 22+](https://nodejs.org/) so that Python and npm are on PATH. Open PowerShell in the cloned repository and run:
@@ -163,9 +175,90 @@ On a fresh checkout, use python scripts/setup_env.py once to create .venv/ befor
 
 Python dependencies are pinned in requirements.lock, frontend dependencies in frontend/package-lock.json. CI recreates .venv/ from these specifications on Windows and Linux.
 
+## Local Docker release evaluation
+
+Use three verification levels: development in the Windows repository `.venv`, isolated local release evaluation in Docker Desktop's Linux backend, and the existing Windows/Ubuntu GitHub CI. Docker runs the same FastAPI application, production React frontend, locked dependencies, and automated tests. The owner still decides photographic quality and publication approval.
+
+The PowerShell launcher clones a selected branch or commit into a fresh `data/exports/docker/run-.../workspace/`, builds Python 3.13 and Node.js 24 dependencies in the repository-local Linux `.venv`, builds the frontend, runs tests, and starts the authenticated app. It copies `data/input/` into that workspace once, checks each original and copy with SHA-256, and rejects directory links that could cause copying loops. The entire workspace is bind-mounted to the host throughout the run. It includes source, `.venv`, frontend dependencies and build, input photos, catalog and WAL, thumbnails, masters, masks, derivatives, versions, model cache, backups, evidence, and exports. Dependency layers are cached; changes to either lockfile trigger installation again. The active development checkout is not used as the evaluation workspace.
+
+### Start and test on Windows
+
+Start Docker Desktop in Linux-container mode. From a fresh PowerShell shell at the repository root, with Git installed:
+
+```powershell
+if (-not (Test-Path -LiteralPath 'scripts/docker/evaluate.ps1' -PathType Leaf)) { throw 'Run from the repository root.' }
+New-Item -ItemType Directory -Force -Path 'data/input' | Out-Null
+if ((docker info --format '{{.OSType}}') -ne 'linux') { throw 'Start Docker Desktop with its Linux backend.' }
+& .\scripts\docker\evaluate.ps1
+```
+
+Place owner-selected photos in `data/input/` before starting; an empty input is also supported. The default revision is `dev/v2-05-ontology-prefill`, the current successor to V2-04. Use `-Revision <branch-or-SHA>` to evaluate another revision, `-Repository <URL-or-local-Git-path>` for another source, and `-Port 8001` if port 8000 is occupied. The selected revision must be fetchable from that repository. First build needs access to the Docker base images and pinned package sources; later builds reuse Docker layers.
+
+The launcher runs backend `unittest`, frontend `vitest`, and the production frontend build inside the isolated workspace. It stops on failure, keeps the partial run, and writes logs and a failure report. It makes no paid API calls. When the authenticated health check passes, it prints a run ID, URL, username, and password. Open that URL in the Windows browser. The host port binds to `127.0.0.1`; do not forward it to the network. The app retains its Basic authentication, Host checks, and origin checks.
+
+The private `config/openAI.env` is never committed, so a fresh Docker checkout does not contain it. After configuring that local file from `config/openAI.example.env`, copy it to an ignored Docker config path outside the evaluation archive and start a **new** run with the copied file:
+
+```powershell
+if (-not (Test-Path -LiteralPath 'scripts/docker/evaluate.ps1' -PathType Leaf)) { throw 'Run from the repository root.' }
+if (-not (Test-Path -LiteralPath 'config/openAI.env' -PathType Leaf)) { throw 'Configure config/openAI.env first.' }
+New-Item -ItemType Directory -Force -Path 'config/docker' | Out-Null
+$dockerConfig = Join-Path (Resolve-Path 'config/docker').Path 'openAI.env'
+Copy-Item -LiteralPath 'config/openAI.env' -Destination $dockerConfig -Force
+if ((Get-FileHash -LiteralPath 'config/openAI.env' -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $dockerConfig -Algorithm SHA256).Hash) { throw 'Docker config copy failed checksum verification.' }
+& .\scripts\docker\evaluate.ps1 -ProviderConfigFile $dockerConfig
+```
+
+Add `-Port 8001` if 8000 is occupied. The launcher mounts `config/docker/openAI.env` read-only as `/workspace/config/openAI.env` **inside the running container**. The credential bytes are not copied into the preserved `run-.../workspace/` or the evaluation report; Docker may leave a zero-byte mount-point file there after stopping. Keep the copied file at the same host path for `Resume`. The app reads it on startup; copying it does not authorize a paid operation. Every paid operation still needs current-run in-app authorization. The launcher's separate login-password file lives in ignored `data/exports/docker/.credentials/`, outside individual runs. Never share or commit either credential.
+
+### Stop, inspect, and resume
+
+Replace `<run-id>` with the printed directory name. Verify the run exists before acting:
+
+```powershell
+if (-not (Test-Path -LiteralPath 'scripts/docker/evaluate.ps1' -PathType Leaf)) { throw 'Run from the repository root.' }
+$runId = '<run-id>'
+if (-not (Test-Path -LiteralPath (Join-Path (Join-Path 'data/exports/docker' $runId) 'metadata.json') -PathType Leaf)) { throw 'Run ID not found.' }
+& .\scripts\docker\evaluate.ps1 -Action Status -RunId $runId
+& .\scripts\docker\evaluate.ps1 -Action Snapshot -RunId $runId
+& .\scripts\docker\evaluate.ps1 -Action Resume -RunId $runId
+```
+
+`Snapshot` and `Stop` gracefully stop the server, retain its logs, check SQLite integrity and foreign keys, verify workspace and host-input hashes, and create a separate consistent SQLite backup under `test-results/`. The whole host-mounted workspace is the recoverable record; a database backup alone lacks its media. `Resume` restarts the same container and waits for authenticated health. Stop and snapshot again before copying the entire run directory to private backup storage. Do not delete individual catalog files or overwrite an earlier export. Cleanup of a stopped container, image, run directory, or credential file is manual and should use its explicit run ID after a separate backup.
+
+Completed collections appear on Windows under `data/exports/docker/<run-id>/workspace/data/exports/<export-id>/`. The in-app “Open export folder” button cannot open Windows Explorer from inside Docker; browse this host path directly. Check images, dimensions, manifest, cost report, and privacy before publication.
+
+### Test record and owner acceptance
+
+The local evaluation on 5 November 2026 used `dev/v2-05-ontology-prefill` commit `02246c13a931d193778daf51ef460499b6bf3122` in run `run-20261105-131013-9ec7ff83`, on host port 8001. The private evidence is under `data/exports/docker/<run-id>/`: `evaluation-report.md`, `logs/`, and `test-results/`. Do not commit or share it; it contains private photos and catalog data.
+
+| Check | Measured result |
+| --- | --- |
+| Docker Linux image, locked installation, frontend production build | PASS |
+| Backend `unittest discover -s tests -v` | 102 passed |
+| Frontend `npm --prefix frontend test` | 23 passed |
+| Frontend `npm --prefix frontend run build` | PASS |
+| Authenticated health and production UI | PASS on port 8001; anonymous UI request returned 401 |
+| Import and restart | 20 photos imported; 20 remained after stop and resume |
+| Input integrity | 20/20 copied inputs and 20/20 host originals matched SHA-256 |
+| SQLite and complete workspace | `integrity_check=ok`, zero foreign-key violations; backup and full workspace retained |
+
+For owner-controlled manual acceptance, use the browser workflow above and record each result in the private run report:
+
+1. Import representative JPEG, PNG, TIFF, and WebP files; repeat the import, then check duplicate detection and unchanged source hashes. Use synthetic files in a disposable run to check missing or changed-source handling without altering owner originals.
+2. Check architecture, landscape, people, day/night, and condition suggestions. Review subject, tag, description, and preset proposals; correct a field, accept and undo a suggestion, and confirm owner-entered values remain intact. Keep paid analysis off unless separately authorized.
+3. Create a deterministic local correction, inspect the full-resolution master and pending website version, then test batch processing, failure recovery, rejection, approval, and replacement without losing earlier versions.
+4. Export an explicitly approved collection. Confirm only current approved versions appear, export IDs are unique, images and dimensions are correct, and the manifest excludes precise GPS and source paths. Inspect the cost report and host-side export folder.
+5. Snapshot, resume, confirm catalog and export state, snapshot again, and compare the report's SQLite integrity and original checksums. Retain the entire run directory and its supporting media.
+
+The successful Docker run preceded the final failure-report and input-link guards. Those guards passed PowerShell parsing; an invalid-revision exercise produced a private failure report with `NOT_RUN` checks. The complete happy path was not rerun after those guards. During development, normal Git stderr initially stopped the PowerShell wrapper, a backslash expression failed parsing, `docker cp` could not create a Linux symlink on NTFS, and port 8000 was occupied. The wrapper now checks native exit codes, uses string replacement, materializes the workspace through a Linux bind mount, and checks the requested port before cloning. A later non-ASCII character in failure-report text also broke Windows PowerShell parsing and was replaced. Failed run directories remain ignored for inspection.
+
+Owner browser visual review, photographic quality, recognition accuracy, representative local and batch edits, version approval and rejection, approved-only export and privacy, and 200-photo performance are **NOT RUN**. Paid calls, cloud uploads, and GitHub Actions for this branch are **NOT RUN**. The owner should inspect these workflows in the browser, record PASS / FAIL / NOT_RUN with evidence in the private run report or a separate review note, and decide branch acceptance before staging, committing, merging, or release. The `docs/TESTING_AND_ACCEPTANCE.md` referenced by the earlier task is absent from this branch; this README and the run report are the available testing baseline. Software tests do not establish visual correctness.
+
 ## Provider configuration
 
 Generative editing is disabled until you supply a server-side key. Copy config/openAI.example.env to ignored config/openAI.env, enter your own key, select a supported model, and set PHOTO_EDIT_PLANNING_COST_USD to your per-image estimate. Restart the server. Never place credentials in frontend code, screenshots, an issue, or a commit. There is no provider-enforced cost cap. Every paid run still needs an in-app preview, sufficient planning budget, and current-run authorization. Local recognition needs no paid key.
+
+For an isolated Docker run, use the copy-and-mount command in [Local Docker release evaluation](#local-docker-release-evaluation); a fresh checkout does not inherit the local config file.
 
 ## Current branch review: ontology prefill
 
@@ -191,11 +284,11 @@ Possible later work includes local inpainting, RAW/HEIC support, and packaging w
 
 This is a single-user workstation, not a public web service. The Windows launcher uses a new password per run and restricts accepted Host headers and cross-origin writes. HTTP is unencrypted, so someone observing the network could see credentials or photographs. Use a trusted private LAN; never forward the port to the internet or expose it through a public tunnel. The authenticated original-image viewer serves the original file, including any embedded EXIF. Exported website images strip metadata.
 
-The repository ignores the catalog, original photos, model cache, generated edits, exports, backups, and real provider configuration. Inspect every staged file before publishing. The two README examples are intentionally public and contain no EXIF/GPS; no other private photo belongs in Git. See [SECURITY.md](SECURITY.md) for network and privacy limits.
+The repository ignores the catalog, original photos, model cache, generated edits, exports, backups, and real provider configuration. Inspect every staged file before publishing. The two README showcase pairs are intentionally public and contain no EXIF/GPS; no other private photo belongs in Git. See [SECURITY.md](SECURITY.md) for network and privacy limits.
 
 ## License, author, and project records
 
-Code and documentation are © 2026 Fernando Peñaherrera under the [PolyForm Noncommercial License 1.0.0](LICENSE). Its terms permit noncommercial use, changes, and redistribution; commercial permission requires a separate agreement. The two README photos are © 2026 Fernando Peñaherrera under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). See [NOTICE.md](NOTICE.md). Third-party packages and the optional local model retain their own licenses.
+Code and documentation are © 2026 Fernando Peñaherrera under the [PolyForm Noncommercial License 1.0.0](LICENSE). Its terms permit noncommercial use, changes, and redistribution; commercial permission requires a separate agreement. The four README preview images are © 2026 Fernando Peñaherrera under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). See [NOTICE.md](NOTICE.md). Third-party packages and the optional local model retain their own licenses.
 
 Contact: [Fernando Peñaherrera](mailto:fernandopenaherrera@gmail.com) · [GitHub](https://github.com/Fernando3161). For bug reports, include OS, Python and Node versions, reproduction steps, and redacted logs. Never attach photos, SQLite files, GPS, or keys.
 
