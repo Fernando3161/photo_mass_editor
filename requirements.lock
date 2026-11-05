@@ -1,10 +1,14 @@
-﻿# Phase 05 complete resolved Python lock; direct requirements are in requirements.in.
+# Complete pinned Python environment for V2 Priority 4; direct requirements are in requirements.in.
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
 certifi==2026.10.23
+c2pa-python==0.38.0
+cffi==2.1.1
+charset-normalizer==3.5.2
 click==8.5.0
 colorama==0.4.6
+cryptography==50.0.2
 fastapi==0.162.0
 filelock==4.2.6
 flatbuffers==25.12.19
@@ -23,11 +27,15 @@ pillow==13.0.0
 protobuf==7.36.2
 pydantic==2.14.2
 pydantic_core==2.50.2
+pycparser==3.12
 PyYAML==6.0.3
+requests==2.34.2
 starlette==1.10.0
 tokenizers==0.23.3
+toml==0.10.2
 tqdm==4.70.1
 truststore==0.10.5
 typing-inspection==0.4.4
 typing_extensions==4.16.0
+urllib3==2.8.0
 uvicorn==0.54.0

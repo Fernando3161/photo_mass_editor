@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from backend.catalog.database import connect
 from backend.catalog.ingestion import utc_now
+from .costs import calculate
 
 from .analysis import AnalysisProvider
 from .service import ReviewNotFound
@@ -132,14 +133,17 @@ def run_analysis(
             try:
                 suggestion = provider.analyze(path, context)
                 sanitized = suggestion.sanitized()
+                calculated, price_version = calculate(provider.provider_name, provider.model, suggestion.usage)
                 db.execute(
                     """UPDATE analysis_runs SET raw_response_json=?, sanitized_output_json=?,
                               suggested_primary=?, suggested_tags_json=?, suggested_edits=?,
-                              status='SUCCEEDED', actual_cost=?, usage_json=? WHERE id=?""",
+                              status='SUCCEEDED', actual_cost=?, usage_json=?,
+                              calculated_cost_usd=?,price_version=?,request_id=? WHERE id=?""",
                     (json.dumps(suggestion.raw_response), json.dumps(sanitized), suggestion.primary_subject,
                      json.dumps(suggestion.tags), suggestion.suggested_edits,
                      float(suggestion.actual_cost) if suggestion.actual_cost is not None else None,
-                     json.dumps(suggestion.usage) if suggestion.usage is not None else None, run_id),
+                     json.dumps(suggestion.usage) if suggestion.usage is not None else None,
+                     calculated, price_version, suggestion.request_id, run_id),
                 )
                 db.commit()
             except Exception as exc:

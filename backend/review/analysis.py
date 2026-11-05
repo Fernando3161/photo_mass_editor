@@ -16,6 +16,7 @@ class AnalysisSuggestion:
     raw_response: dict[str, Any]
     usage: dict[str, Any] | None = None
     actual_cost: Decimal | None = None
+    request_id: str | None = None
 
     def sanitized(self) -> dict[str, Any]:
         return {

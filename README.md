@@ -16,15 +16,15 @@ Install [Python 3.11+](https://www.python.org/downloads/) and [Node.js 22+](http
 
     powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1
 
-This one script creates the ignored data folders and repository-local Python environment, installs pinned Python and Node dependencies, imports supported photos in data/input, builds the website, opens the browser, and starts the server. Leave the terminal open; press Ctrl+C to stop. Rerun it after adding photos or updating the repository.
+This one script creates the ignored data folders and repository-local Python environment, installs pinned Python and Node dependencies, imports supported photos in data/input, builds the website when its source changed, opens the browser, and starts the server. Leave the terminal open; press Ctrl+C to stop. Rerun it after adding photos or updating the repository.
 
 The launcher checks the existing catalog's source hashes and private media before importing. If you replaced the input with an unrelated batch, it stops instead of combining that batch with stale records. Stop the server, archive the previous `data/catalog/` and `data/exports/` with their media under `data/backups/`, then use a fresh `data/catalog/` for the new `data/input/`. A SQLite snapshot alone does not include thumbnails or edits. See the [V2 Priority 3 review procedure](docs/V2_PHASE_03_REVIEW.md). The similarly named V1 Phase 03 review and `data/phase03-review/` are historical.
 
 On a fresh clone on another Windows laptop, `data/` is absent because it is private and ignored by Git. Copy that laptop's photos into `data/input/` and run the launcher once; it creates `data/catalog/catalog.sqlite`, thumbnails, and the other generated folders automatically. Direct service startup through the repository's `.venv` Python now performs the same catalog preparation when the environment and frontend are already set up. Startup stops if any supported photo fails to import. If you also copied an old `data/catalog/`, it is an existing catalog, not a fresh install: restore/relink its original files or archive it before starting a different batch. The catalog stores source paths for the laptop where each photo was imported.
 
-The terminal prints a one-run username and password, a local URL, and LAN URLs. Enter those credentials in the browser prompt. Other devices on the same trusted private network can use a LAN URL. If Windows Firewall asks, allow Python only on **private** networks when LAN access is needed. The launcher uses plain HTTP; see [Security and privacy](#security-and-privacy).
+The terminal prints a one-run username and password and a local URL. Enter those credentials in the browser prompt. LAN access is explicit: add `-Lan` to the Windows command. Other devices on the same trusted private network can then use the printed LAN URL. If Windows Firewall asks, allow Python only on **private** networks. The launcher uses plain HTTP; see [Security and privacy](#security-and-privacy).
 
-If no LAN gateway is available, the launcher binds to `127.0.0.1` and prints only the local URL. A first installation still needs access to the pinned Python and Node packages; the local-only fallback does not supply an offline package cache.
+The default binds to `127.0.0.1`. A first installation still needs access to the pinned Python and Node packages; an existing verified installation can restart offline. `-Check -NoBrowser` verifies setup, catalog and bundle without starting the server.
 
 To change the port or keep the browser closed:
 
@@ -44,20 +44,13 @@ To import originals from another location after setup, run from the repository r
 
 Those originals remain in that external folder. The launcher automatically imports only data/input/. Repeat imports are safe; existing photos are reported.
 
-### Linux setup
+### Linux quick start
 
-The one-file launcher is for Windows PowerShell. Linux uses the same locked specifications from the repository root:
+With Python 3.11+ and Node.js 22+ on PATH, run from the repository root:
 
-    mkdir -p data/input data/catalog data/exports data/backups data/evidence data/models
-    python3 scripts/setup_env.py
-    .venv/bin/python -m backend.catalog init
-    test -f data/catalog/catalog.sqlite
-    .venv/bin/python -m backend.catalog preflight --strict
-    .venv/bin/python -m backend.catalog import-folder data/input
-    npm --prefix frontend run build
-    .venv/bin/python -m backend.review --data-dir data/catalog --host 127.0.0.1 --port 8000
+    bash scripts/start.sh
 
-Open http://127.0.0.1:8000/. Inspect the import result for errors before starting the server. The Linux command binds to the current computer. Network binding requires an access password and explicit host configuration; the supported LAN flow is scripts/start.ps1 on Windows.
+The Linux launcher creates required folders, verifies `.venv` and the catalog, imports supported photos, reuses a current production bundle, and starts on loopback with a new password. Use `bash scripts/start.sh --check` for a setup check without serving, or `bash scripts/start.sh --lan-host 192.168.1.20` for explicit protected LAN binding (replace the address with this computer's LAN IPv4). The password protects requests, but LAN HTTP is unencrypted.
 
 ## Everyday workflow
 
@@ -99,7 +92,9 @@ To improve a photo that already has an approved version, check **Create a replac
 
 ### 6. Export approved photos
 
-Open **Website collection**. Click **Preview approved collection**; check the count and location status. Check export authorization, then **Export approved collection**. A new folder appears under data/exports/. Its images/ JPEGs are byte-for-byte copies of approved website versions. thumbnails/ has separate small images; manifest.json contains privacy-filtered editorial metadata; cost_report.json separates estimates from known and unknown actual costs. The displayed path opens the collection folder. **Audit files** reports missing, changed, or orphaned artifacts without deleting them.
+Open **Website collection**. Click **Preview approved collection**; check the count and location status. Check export authorization, then **Export approved collection**. A new folder appears under data/exports/. Its images/ JPEGs are byte-for-byte copies of approved website versions. thumbnails/ has separate small images; manifest.json contains privacy-filtered editorial metadata; cost_report.json separates planning estimates, usage calculations, reconciled billing and unknown charges. The displayed path opens the collection folder. **Audit files** reports missing, changed, or orphaned artifacts without deleting them.
+
+For optional signed copies, use the CLI procedure in [the Phase 04 review guide](docs/V2_PHASE_04_REVIEW.md) after previewing the collection. Supply your own C2PA signing certificate and matching private key in ignored private storage; the CLI never creates or commits credentials. The `signed/` files carry Content Credentials and separate hashes. The ordinary `images/` files remain exact approved bytes. A test credential may verify integrity locally but is not publicly trusted.
 
 Inspect every public image and the manifest before copying a collection to a website. Approval is a human decision. Disclose generative scene changes, including removed people, where documentary accuracy matters.
 
@@ -115,7 +110,7 @@ Use a new filename for every snapshot. Stop the server before manually copying t
     & .\.venv\Scripts\python.exe -m backend.review.export_cli audit
     & .\.venv\Scripts\python.exe -m backend.review.export_cli preview
 
-If originals moved, use the catalog's hash-checked relink command; do not edit SQLite paths by hand. If the page is blank after an update, rerun scripts/start.ps1 to rebuild frontend/dist/. If the port is occupied, stop the old server or use -Port 8001. If Python or npm is missing, install the required versions and rerun. A provider failure never approves or overwrites an existing version.
+If originals moved, use the catalog's hash-checked relink command; do not edit SQLite paths by hand. If the page is blank after an update, rerun the launcher to refresh frontend/dist/. If the port is occupied, stop the old server or use `-Port 8001` on Windows / `--port 8001` on Linux. If Python or npm is missing, install the required versions and rerun. A provider failure never approves or overwrites an existing version.
 
 Developer checks from the repository root, after setup:
 

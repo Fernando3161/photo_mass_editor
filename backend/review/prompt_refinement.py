@@ -10,10 +10,12 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Protocol
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 from uuid import uuid4
 
 from backend.catalog.database import connect
 from backend.catalog.ingestion import utc_now
+from .costs import PaidRequestError, calculate
 from .prompts import PromptConflict, get_prompt, required_prompt_lines, revise_prompt, validate_prompt_text
 
 
@@ -39,6 +41,7 @@ class RefinementResult:
     raw_response: dict[str, Any]
     usage: dict[str, Any] | None = None
     actual_cost_usd: Decimal | None = None
+    request_id: str | None = None
 
 
 class RefinementProvider(Protocol):
@@ -62,16 +65,23 @@ class OpenAITextRefiner:
                 "max_output_tokens": MAX_OUTPUT_TOKENS, "reasoning": {"effort": "none"}, "store": False}
         request = Request("https://api.openai.com/v1/responses", json.dumps(body).encode(),
                           {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST")
-        with urlopen(request, timeout=90) as response:
-            raw = json.load(response)
+        try:
+            with urlopen(request, timeout=90) as response:
+                raw = json.load(response)
+                request_id = getattr(response, "headers", {}).get("x-request-id") or raw.get("id")
+        except HTTPError as exc:
+            raise PaidRequestError(f"Text refinement returned HTTP {exc.code}",
+                                   request_id=getattr(exc, "headers", {}).get("x-request-id")) from exc
         if raw.get("status") != "completed":
-            raise RuntimeError("Text provider did not complete the refinement")
+            raise PaidRequestError("Text provider did not complete the refinement",
+                                   request_id=request_id, usage=raw.get("usage"))
         texts = [part.get("text", "") for item in raw.get("output", [])
                  for part in item.get("content", []) if part.get("type") == "output_text"]
         text = "\n".join(value for value in texts if value).strip()
         if not text:
-            raise RuntimeError("Text provider returned no proposal")
-        return RefinementResult(text, raw, raw.get("usage"))
+            raise PaidRequestError("Text provider returned no proposal", request_id=request_id,
+                                   usage=raw.get("usage"))
+        return RefinementResult(text, raw, raw.get("usage"), request_id=request_id)
 
 
 def _current(db: sqlite3.Connection, prompt_id: str) -> sqlite3.Row:
@@ -179,13 +189,23 @@ def run(data_dir: Path, prompt_id: str, provider: RefinementProvider, *, authori
             result = provider.refine(request["baseline"])
             if not result.text.strip() or len(result.text) > 10000:
                 raise ValueError("Provider proposal is empty or too long")
+            calculated, price_version = calculate(provider.name, provider.model, result.usage)
             db.execute("""UPDATE prompt_refinements SET response_json=?, proposed_text=?, status='SUCCEEDED',
-                usage_json=?, actual_cost_usd=?, completed_at=? WHERE id=?""",
+                usage_json=?, actual_cost_usd=?, calculated_cost_usd=?,price_version=?,request_id=?,completed_at=? WHERE id=?""",
                 (json.dumps(result.raw_response), result.text.strip(), json.dumps(result.usage),
-                 float(result.actual_cost_usd) if result.actual_cost_usd is not None else None, utc_now(), identity))
+                 float(result.actual_cost_usd) if result.actual_cost_usd is not None else None,
+                 calculated, price_version, result.request_id, utc_now(), identity))
         except Exception as exc:
-            db.execute("UPDATE prompt_refinements SET status='FAILED',error=?,completed_at=? WHERE id=?",
-                       (str(exc), utc_now(), identity))
+            if isinstance(exc, PaidRequestError):
+                calculated, price_version = calculate(provider.name, provider.model, exc.usage)
+                db.execute("""UPDATE prompt_refinements SET status='FAILED',error=?,completed_at=?,
+                           request_id=?,usage_json=?,calculated_cost_usd=?,price_version=? WHERE id=?""",
+                           (str(exc), utc_now(), exc.request_id,
+                            json.dumps(exc.usage) if exc.usage is not None else None,
+                            calculated, price_version, identity))
+            else:
+                db.execute("UPDATE prompt_refinements SET status='FAILED',error=?,completed_at=? WHERE id=?",
+                           (str(exc), utc_now(), identity))
             db.commit()
             raise
         db.commit()

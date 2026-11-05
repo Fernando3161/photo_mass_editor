@@ -18,6 +18,7 @@ from backend.review.app import create_app
 from backend.review.editing import enqueue_batch, review_version, run_job
 from backend.review.export import ExportError, audit_artifacts, create_export, preview_export, recent_exports
 from backend.review.export_cli import backup_database
+from backend.review.c2pa_signing import SigningConfig
 from scripts.migrate_data_layout import inspect_layout, migrate_layout
 
 
@@ -107,6 +108,42 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(cost["operations"]["editing"]["attempts"], 1)
         self.assertEqual(cost["operations"]["editing"]["known_actual_usd"], "0.0")
         self.assertEqual(audit_artifacts(self.data)["missing"], [])
+        self.assertEqual(sha256(self.source), self.source_hash)
+
+    def test_optional_signed_copy_keeps_approved_bytes_and_private_text_out_of_manifest(self):
+        version_id = self._approved()
+        credential = SigningConfig(self.root / "cert.pem", self.root / "key.pem")
+
+        def fake_sign(source, target, *, approved_version_id, operations, config):
+            self.assertEqual(approved_version_id, version_id)
+            self.assertEqual(config, credential)
+            self.assertEqual(operations[0]["class"], "deterministic publication edit")
+            target.write_bytes(source.read_bytes() + b"signed-test-copy")
+            return {"path": target, "sha256": sha256(target),
+                    "signer_identity": "CN=Test", "signer_cert_sha256": "f" * 64}
+
+        with patch("backend.review.export.sign_copy", side_effect=fake_sign):
+            exported = create_export(self.data, signing=credential)
+        folder = self.data / exported["directory"]
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        item = manifest["items"][0]
+        db = connect(self.data)
+        try:
+            approved_path = db.execute("SELECT path FROM image_versions WHERE id=?", (version_id,)).fetchone()["path"]
+        finally:
+            db.close()
+        self.assertEqual((folder / item["image"]).read_bytes(), (self.data / approved_path).read_bytes())
+        self.assertNotEqual(item["sha256"], item["signed_copy"]["sha256"])
+        self.assertEqual(item["signed_copy"]["signer_identity"], "CN=Test")
+        self.assertNotIn("Keep stone texture", json.dumps(manifest))
+        self.assertNotIn("source.jpg", json.dumps(manifest))
+        db = connect(self.data)
+        try:
+            saved = db.execute("SELECT signed_path,signed_sha256 FROM export_items WHERE export_id=?", (exported["export_id"],)).fetchone()
+            self.assertEqual(saved["signed_sha256"], item["signed_copy"]["sha256"])
+            self.assertTrue(saved["signed_path"].endswith(item["signed_copy"]["image"]))
+        finally:
+            db.close()
         self.assertEqual(sha256(self.source), self.source_hash)
 
     def test_rejected_and_changed_approved_artifacts_never_export(self):

@@ -1,6 +1,6 @@
 # V2 project plan — faster local editing and review
 
-Status: Priority 3 implementation on `dev/v2-03-intelligence-prompts` for owner review, 2026-11-04. The owner requested the next phase from the clean, committed Priority 2 branch at `75dda06`. This plan responds to the private `CRITICAL_EVALUATION_2026-11-02.local.md`; that report stays excluded from Git. Priority 3 implementation and remaining owner acceptance checks are recorded in its report. Priority 4 remains planned.
+Status: Priority 4 implementation on `dev/v2-04-provenance-launch` for owner review, 2026-11-04. The owner requested this phase from the clean, committed Priority 3 branch at `e621a5e`. This plan responds to the private `CRITICAL_EVALUATION_2026-11-02.local.md`; that report stays excluded from Git. Earlier owner acceptance and the Priority 4 review gate remain recorded in their reports.
 
 ## Product outcome and boundaries
 

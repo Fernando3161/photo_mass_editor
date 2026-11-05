@@ -1,6 +1,8 @@
 param(
     [int]$Port = 8000,
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$Lan,
+    [switch]$Check
 )
 
 $ErrorActionPreference = 'Stop'
@@ -38,13 +40,17 @@ if ($photos.Count -gt 0) {
     Write-Host 'No supported photos in data/input. Copy originals there and rerun this script to import them.'
 }
 
-$npm = (Get-Command npm.cmd -ErrorAction Stop).Source
-& $npm --prefix frontend run build
+& $venvPython scripts/frontend_bundle.py
 if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
 if (-not (Test-Path -LiteralPath 'frontend/dist/index.html' -PathType Leaf)) { throw 'Frontend build did not create index.html.' }
+if ($Check) { Write-Host 'Windows startup checks passed; server was not started.'; return }
 
-$addresses = @(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -and $_.IPv4Address } | ForEach-Object { $_.IPv4Address.IPAddress } | Where-Object { $_ -and $_ -notlike '169.254.*' } | Select-Object -Unique)
-$bindHost = if ($addresses.Count -gt 0) { '0.0.0.0' } else { '127.0.0.1' }
+$addresses = @()
+if ($Lan) {
+    $addresses = @(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -and $_.IPv4Address } | ForEach-Object { $_.IPv4Address.IPAddress } | Where-Object { $_ -and $_ -notlike '169.254.*' } | Select-Object -Unique)
+    if ($addresses.Count -eq 0) { throw 'No usable LAN address found; start without -Lan for loopback.' }
+}
+$bindHost = if ($Lan) { '0.0.0.0' } else { '127.0.0.1' }
 $passwordBytes = New-Object byte[] 24
 $generator = [System.Security.Cryptography.RandomNumberGenerator]::Create()
 try { $generator.GetBytes($passwordBytes) } finally { $generator.Dispose() }
@@ -54,7 +60,7 @@ $env:PHOTO_EDITOR_ALLOWED_HOSTS = (@('localhost', '127.0.0.1') + $addresses) -jo
 Write-Host ''
 Write-Host "Local: http://127.0.0.1:$Port/"
 foreach ($address in $addresses) { Write-Host "LAN:   http://${address}:$Port/" }
-if ($addresses.Count -eq 0) { Write-Host 'No LAN gateway found; starting for this computer only.' }
+if (-not $Lan) { Write-Host 'Starting for this computer only. Add -Lan for protected LAN access.' }
 Write-Host 'Username: owner'
 Write-Host "Password for this run: $env:PHOTO_EDITOR_ACCESS_PASSWORD"
 if ($addresses.Count -gt 0) { Write-Host 'Use only on a trusted private network. HTTP traffic is not encrypted. Do not forward this port to the internet.' }

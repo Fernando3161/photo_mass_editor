@@ -2,7 +2,7 @@ name: Photo Mass Editor checks
 
 on:
   push:
-    branches: ["main", "dev/v1-phase-07-release-cleanup", "dev/v2-02-batch-workflow", "dev/v2-03-intelligence-prompts"]
+    branches: ["main", "dev/v1-phase-07-release-cleanup", "dev/v2-02-batch-workflow", "dev/v2-03-intelligence-prompts", "dev/v2-04-provenance-launch"]
   pull_request:
 
 jobs:
@@ -35,3 +35,23 @@ jobs:
       - name: Build workstation
         working-directory: frontend
         run: npm run build
+      - name: Verify Linux launcher and offline restart
+        if: runner.os == 'Linux'
+        env:
+          PIP_NO_INDEX: '1'
+        run: |
+          bash -n scripts/start.sh
+          bash scripts/start.sh --check
+          .venv/bin/python scripts/frontend_bundle.py
+      - name: Verify Windows launcher and offline restart
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          PIP_NO_INDEX: '1'
+        run: |
+          $tokens = $null; $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'scripts/start.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { throw "PowerShell syntax errors: $errors" }
+          & ./scripts/start.ps1 -Check -NoBrowser
+          if ($LASTEXITCODE -ne 0) { throw 'Windows launcher check failed' }
+          & ./.venv/Scripts/python.exe scripts/frontend_bundle.py

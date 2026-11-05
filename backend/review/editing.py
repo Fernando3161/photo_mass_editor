@@ -19,6 +19,7 @@ from PIL import Image, ImageEnhance, ImageFilter
 
 from backend.catalog.database import connect
 from backend.catalog.ingestion import sha256, utc_now
+from .costs import PaidRequestError, calculate
 from .image_pipeline import (
     ImageIntegrityError, _exclusive_artifact, ensure_publication_input, normalize_attempt, private_path,
     save_raw_attempt, verify_publication_input,
@@ -32,6 +33,7 @@ class EditResult:
     model: str
     usage: dict
     actual_cost_usd: Decimal | None = None
+    request_id: str | None = None
 
 
 class EditProvider(Protocol):
@@ -408,9 +410,13 @@ def run_job(data_dir: Path, job_id: str, provider: EditProvider) -> dict:
                 raise EditConflict("Configured provider model changed after queueing")
             result = provider.edit(input_path, prompt["compiled_text"], mask)
         raw_relative, raw_path = save_raw_attempt(data_dir, result.image_bytes, result.suffix)
-        db.execute("UPDATE edit_jobs SET raw_path=?,raw_sha256=?,usage_json=?,actual_cost_usd=? WHERE id=?",
+        calculated, price_version = calculate("openai", row["model"], result.usage,
+                                               direct_images=row["engine"] == "GENERATIVE")
+        db.execute("""UPDATE edit_jobs SET raw_path=?,raw_sha256=?,usage_json=?,actual_cost_usd=?,
+                   calculated_cost_usd=?,price_version=?,request_id=? WHERE id=?""",
                    (raw_relative, sha256(raw_path), json.dumps(result.usage),
-                    float(result.actual_cost_usd) if result.actual_cost_usd is not None else None, job_id))
+                    float(result.actual_cost_usd) if result.actual_cost_usd is not None else None,
+                    calculated, price_version, result.request_id, job_id))
         db.commit()
         normalized_relative, normalized_path, width, height = normalize_attempt(
             data_dir, raw_path, profile, (input_item["width"], input_item["height"])
@@ -441,6 +447,12 @@ def run_job(data_dir: Path, job_id: str, provider: EditProvider) -> dict:
         db.commit()
     except Exception as exc:
         db.rollback()
+        if isinstance(exc, PaidRequestError):
+            calculated, price_version = calculate("openai", row["model"], exc.usage, direct_images=True)
+            db.execute("""UPDATE edit_jobs SET request_id=?,usage_json=?,calculated_cost_usd=?,price_version=?
+                       WHERE id=? AND status='RUNNING'""",
+                       (exc.request_id, json.dumps(exc.usage) if exc.usage is not None else None,
+                        calculated, price_version, job_id))
         db.execute("UPDATE edit_jobs SET status='FAILED',error=?,completed_at=? WHERE id=? AND status='RUNNING'",
                    (str(exc)[:1000], utc_now(), job_id))
         db.commit()

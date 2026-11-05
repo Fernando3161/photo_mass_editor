@@ -17,6 +17,7 @@ from backend.catalog.database import connect
 from backend.catalog.ingestion import sha256, utc_now
 
 from .image_pipeline import ImageIntegrityError, private_path, validate_publication, verify_publication_input
+from .c2pa_signing import SigningConfig, sign_copy, verify_copy
 
 
 PRIVACY_POLICY = "confirmed-editorial-location-only-v1"
@@ -60,7 +61,9 @@ def _approved(db: sqlite3.Connection, root: Path) -> list[dict]:
                   lj.source_hash AS local_source_hash, lj.master_path, lj.master_sha256,
                   lj.master_width, lj.master_height, lr.source_hash AS recipe_source_hash,
                   lr.publication_profile_id AS recipe_profile_id,
-                  lr.profile_snapshot_json AS recipe_profile_snapshot
+                  lr.profile_snapshot_json AS recipe_profile_snapshot,
+                  lr.settings_json AS recipe_settings, j.engine AS edit_engine,
+                  j.model AS edit_model, j.settings_json AS edit_settings
            FROM image_versions v JOIN photos p ON p.id=v.photo_id
            LEFT JOIN subjects s ON s.id=p.primary_subject_id
            LEFT JOIN publication_inputs pi ON pi.id=v.publication_input_id
@@ -170,25 +173,37 @@ def recent_exports(data_dir: Path, limit: int = 10) -> list[dict]:
 
 
 def _cost_report(db: sqlite3.Connection, export_id: str, created_at: str) -> dict:
-    report = {"export_id": export_id, "through": created_at, "currency": "USD", "operations": {}}
-    for name, table, estimate, actual in (
-        ("editing", "edit_jobs", "estimated_cost_usd", "actual_cost_usd"),
-        ("analysis", "analysis_runs", "estimated_cost", "actual_cost"),
+    report = {"export_id": export_id, "through": created_at, "currency": "USD",
+              "price_note": "Usage calculations use stored rate snapshots; planning estimates are not spending caps or invoices.",
+              "operations": {}}
+    for name, table, estimate, actual, date_column in (
+        ("editing", "edit_jobs", "estimated_cost_usd", "actual_cost_usd", "created_at"),
+        ("analysis", "analysis_runs", "estimated_cost", "actual_cost", "analyzed_at"),
+        ("refinement", "prompt_refinements", "estimated_cost_usd", "actual_cost_usd", "created_at"),
     ):
-        rows = db.execute(f"SELECT {estimate}, {actual} FROM {table} WHERE created_at <= ?" if name == "editing"
-                          else f"SELECT {estimate}, {actual} FROM {table} WHERE analyzed_at <= ?",
-                          (created_at,)).fetchall()
-        estimated = sum((Decimal(str(row[0])) for row in rows if row[0] is not None), Decimal("0"))
-        actual_total = sum((Decimal(str(row[1])) for row in rows if row[1] is not None), Decimal("0"))
+        rows = db.execute(f"""SELECT r.id,r.{estimate} estimate,r.{actual} actual,
+                           r.calculated_cost_usd calculated,r.price_version,
+                           b.billed_usd billed FROM {table} r
+                           LEFT JOIN billing_reconciliations b ON b.operation=? AND b.receipt_id=r.id
+                           WHERE r.{date_column} <= ?""", (name, created_at)).fetchall()
+        estimated = sum((Decimal(str(row["estimate"])) for row in rows if row["estimate"] is not None), Decimal("0"))
+        actual_total = sum((Decimal(str(row["actual"])) for row in rows if row["actual"] is not None), Decimal("0"))
+        calculated = sum((Decimal(row["calculated"]) for row in rows if row["calculated"] is not None), Decimal("0"))
+        billed = sum((Decimal(row["billed"]) for row in rows if row["billed"] is not None), Decimal("0"))
         report["operations"][name] = {
             "attempts": len(rows), "estimated_usd": str(estimated),
             "known_actual_usd": str(actual_total),
-            "actual_cost_unknown_count": sum(row[1] is None for row in rows),
+            "actual_cost_unknown_count": sum(row["actual"] is None and row["billed"] is None for row in rows),
+            "calculated_usd": str(calculated),
+            "calculated_count": sum(row["calculated"] is not None for row in rows),
+            "reconciled_usd": str(billed),
+            "reconciled_count": sum(row["billed"] is not None for row in rows),
+            "price_versions": sorted({row["price_version"] for row in rows if row["price_version"]}),
         }
     return report
 
 
-def create_export(data_dir: Path) -> dict:
+def create_export(data_dir: Path, *, signing: SigningConfig | None = None) -> dict:
     """Publish a new directory; never rewrite an earlier export or an approved image."""
     root = Path(data_dir).resolve()
     db = connect(root)
@@ -207,6 +222,8 @@ def create_export(data_dir: Path) -> dict:
         staging.mkdir()
         (staging / "images").mkdir()
         (staging / "thumbnails").mkdir()
+        if signing:
+            (staging / "signed").mkdir()
         manifest_items = []
         records = []
         for item in items:
@@ -235,7 +252,26 @@ def create_export(data_dir: Path) -> dict:
             subject = (item["subject"] or "").strip()
             location = ({"city": item["city"].strip(), "country": item["country"].strip()}
                         if item["city"] and item["country"] else None)
-            manifest_items.append({
+            signed = None
+            if signing:
+                if item["local_job_id"]:
+                    values = json.loads(item["recipe_settings"])
+                    settings = {key: value for key, value in values.items()
+                                if key in {"levels_strength", "exposure_ev", "black_point", "white_point",
+                                           "red_gain", "blue_gain", "shadow_lift", "highlight_compression",
+                                           "denoise", "sharpen", "straighten_deg", "lens_k1",
+                                           "perspective_vertical", "crop", "preset_id"}}
+                    operations = [{"class": "deterministic local correction", "settings": settings}]
+                elif item["edit_engine"] == "GENERATIVE":
+                    operations = [{"class": "generative image edit", "model": item["edit_model"],
+                                   "quality": "medium"}]
+                else:
+                    operations = [{"class": "deterministic publication edit", "settings":
+                                   {key: value for key, value in json.loads(item["edit_settings"]).items()
+                                    if key in {"exposure", "contrast", "saturation", "sharpness", "denoise"}}}]
+                signed = sign_copy(image_target, staging / "signed" / image_name,
+                                   approved_version_id=item["version_id"], operations=operations, config=signing)
+            manifest_item = {
                 "photo_id": item["photo_id"], "approved_version_id": item["version_id"],
                 "approved_at": item["reviewed_at"], "image": image_rel,
                 "sha256": item["version_sha256"], "width": item["width"],
@@ -244,10 +280,18 @@ def create_export(data_dir: Path) -> dict:
                 "title": subject or "Travel photo", "caption": caption,
                 "alt_text": caption or subject or "Travel photo",
                 "tags": item["tags"], "location": location,
-            })
+            }
+            if signed:
+                manifest_item["signed_copy"] = {"image": f"signed/{image_name}", "sha256": signed["sha256"],
+                    "signer_identity": signed["signer_identity"], "signer_cert_sha256": signed["signer_cert_sha256"]}
+            manifest_items.append(manifest_item)
             records.append((export_id, item["photo_id"], item["version_id"],
                             f"{relative_dir}/{image_rel}", item["version_sha256"],
-                            f"{relative_dir}/{thumb_rel}", sha256(thumb_target)))
+                            f"{relative_dir}/{thumb_rel}", sha256(thumb_target),
+                            f"{relative_dir}/signed/{image_name}" if signed else None,
+                            signed["sha256"] if signed else None,
+                            signed["signer_identity"] if signed else None,
+                            signed["signer_cert_sha256"] if signed else None))
         manifest = {"schema_version": 1, "export_id": export_id, "created_at": created_at,
                     "target": TARGET, "privacy_policy_version": PRIVACY_POLICY,
                     "items": manifest_items}
@@ -266,7 +310,8 @@ def create_export(data_dir: Path) -> dict:
         )
         db.executemany(
             """INSERT INTO export_items(export_id,photo_id,image_version_id,derivative_path,
-               derivative_sha256,thumbnail_path,thumbnail_sha256) VALUES (?,?,?,?,?,?,?)""", records,
+               derivative_sha256,thumbnail_path,thumbnail_sha256,signed_path,signed_sha256,
+               signer_identity,signer_cert_sha256) VALUES (?,?,?,?,?,?,?,?,?,?,?)""", records,
         )
         db.commit()
         return {"export_id": export_id, "directory": relative_dir,
@@ -296,6 +341,7 @@ def audit_artifacts(data_dir: Path) -> dict:
             ("local_jobs", "master_path", "master_sha256"),
             ("export_items", "derivative_path", "derivative_sha256"),
             ("export_items", "thumbnail_path", "thumbnail_sha256"),
+            ("export_items", "signed_path", "signed_sha256"),
         ):
             for row in db.execute(f"SELECT {path_col}, {hash_col} FROM {table} WHERE {path_col} IS NOT NULL"):
                 resolver = export_path if table == "export_items" else private_path
@@ -312,7 +358,9 @@ def audit_artifacts(data_dir: Path) -> dict:
                 try:
                     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
                     expected = {item["image_version_id"]: item for item in db.execute(
-                        "SELECT image_version_id,derivative_path,derivative_sha256,thumbnail_path,thumbnail_sha256 FROM export_items WHERE export_id=?",
+                        """SELECT image_version_id,derivative_path,derivative_sha256,thumbnail_path,
+                           thumbnail_sha256,signed_path,signed_sha256,signer_identity,signer_cert_sha256
+                           FROM export_items WHERE export_id=?""",
                         (row["id"],),
                     )}
                     entries = manifest["items"]
@@ -324,8 +372,23 @@ def audit_artifacts(data_dir: Path) -> dict:
                                    or entry["sha256"] != expected[entry["approved_version_id"]]["derivative_sha256"]
                                    or f"exports/{row['id']}/{entry['thumbnail']}" != expected[entry["approved_version_id"]]["thumbnail_path"]
                                    or entry["thumbnail_sha256"] != expected[entry["approved_version_id"]]["thumbnail_sha256"]
+                                   or (entry.get("signed_copy") is None) != (expected[entry["approved_version_id"]]["signed_path"] is None)
+                                   or (entry.get("signed_copy") is not None and (
+                                       f"exports/{row['id']}/{entry['signed_copy']['image']}" != expected[entry["approved_version_id"]]["signed_path"]
+                                       or entry["signed_copy"]["sha256"] != expected[entry["approved_version_id"]]["signed_sha256"]
+                                       or entry["signed_copy"]["signer_identity"] != expected[entry["approved_version_id"]]["signer_identity"]
+                                       or entry["signed_copy"]["signer_cert_sha256"] != expected[entry["approved_version_id"]]["signer_cert_sha256"]))
                                    for entry in entries)):
                         invalid_manifests.append(row["manifest_path"])
+                    else:
+                        for entry in entries:
+                            if entry.get("signed_copy"):
+                                try:
+                                    verify_copy(export_path(root, f"exports/{row['id']}/{entry['signed_copy']['image']}"),
+                                                entry["approved_version_id"], entry["sha256"])
+                                except (OSError, ValueError, RuntimeError):
+                                    invalid_manifests.append(row["manifest_path"])
+                                    break
                 except (OSError, ValueError, KeyError, TypeError):
                     invalid_manifests.append(row["manifest_path"])
             if cost_path.is_file():

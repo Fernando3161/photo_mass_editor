@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 from PIL import Image
 
 from .editing import EditResult
+from .costs import PaidRequestError
 
 
 class OpenAIEditProvider:
@@ -64,17 +65,21 @@ class OpenAIEditProvider:
         try:
             with urlopen(request, timeout=180) as response:
                 result = json.load(response)
+                request_id = getattr(response, "headers", {}).get("x-request-id")
         except HTTPError as exc:
-            raise RuntimeError(f"OpenAI image edit returned HTTP {exc.code}; inspect account status and model access") from exc
+            raise PaidRequestError(f"OpenAI image edit returned HTTP {exc.code}; inspect account status and model access",
+                                   request_id=getattr(exc, "headers", {}).get("x-request-id")) from exc
         except URLError as exc:
             raise RuntimeError("OpenAI image edit request failed before a response; inspect job receipt before retrying") from exc
         data = result.get("data") or []
         if not data or not data[0].get("b64_json"):
-            raise RuntimeError("OpenAI image edit returned no image; inspect job receipt before retrying")
+            raise PaidRequestError("OpenAI image edit returned no image; inspect job receipt before retrying",
+                                   request_id=request_id, usage=result.get("usage"))
         return EditResult(
             image_bytes=base64.b64decode(data[0]["b64_json"], validate=True),
             suffix=".png", model=self.model, usage=result.get("usage") or {},
             actual_cost_usd=None,  # Usage is retained; the provider does not return an invoice amount here.
+            request_id=request_id,
         )
 
 

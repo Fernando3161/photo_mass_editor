@@ -52,6 +52,7 @@ The edit panel's 0.10 USD run budget works for a single eligible photo when `PHO
 ## Phase 06 approved collection
 
 The **Export** tab previews every approved website version and validates its file identity, source/profile/job provenance, owner approval event, dimensions and metadata policy. It does not create files. **Export approved collection** requires the owner to tick current-run authorization, then writes a new collection under `data/exports/` for the canonical `data/catalog`. Website images are exact byte copies of the approved JPEGs; small thumbnails, a privacy filtered manifest, and a cost report are separate. The manifest includes city/country only when both editorial fields were entered or accepted by the owner; it omits private GPS and original filenames. The displayed collection path and recent-collection paths open their recorded folders in the local file manager, including after a browser refresh. High-contrast links download the manifest and cost report, and the tab offers a read-only file audit. No cleanup action deletes media.
+The V2 Priority 4 cost report separately shows planning estimates, usage-calculated amounts with a dated rate version, reconciled owner billing and unknown charges, including text refinement. Optional C2PA signing is a private CLI export with an owner-supplied certificate and key; signed copies have distinct filenames and hashes. The ordinary browser export remains unsigned and byte-identical to approved versions.
 
 ## V2 Priority 1 local editing workflow
 

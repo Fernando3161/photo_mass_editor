@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import argparse
+import hashlib
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,9 +54,18 @@ def main() -> None:
         major = int(node_version.removeprefix("v").split(".", 1)[0])
         if major < 22:
             raise SystemExit(f"Node.js 22 or newer is required; found {node_version}")
-        subprocess.run([npm, "ci", "--no-audit", "--no-fund"], cwd=frontend, check=True)
-        subprocess.run([npm, "ls", "--all"], cwd=frontend, check=True,
-                       stdout=subprocess.DEVNULL)
+        lock_hash = hashlib.sha256(frontend.joinpath("package-lock.json").read_bytes()).hexdigest()
+        stamp = frontend / "node_modules" / ".photo-editor-lock.sha256"
+        needs_install = not stamp.is_file() or stamp.read_text(encoding="ascii").strip() != lock_hash
+        if not needs_install:
+            checked = subprocess.run([npm, "ls", "--all"], cwd=frontend,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            needs_install = checked.returncode != 0
+        if needs_install:
+            subprocess.run([npm, "ci", "--no-audit", "--no-fund"], cwd=frontend, check=True)
+            subprocess.run([npm, "ls", "--all"], cwd=frontend, check=True,
+                           stdout=subprocess.DEVNULL)
+            stamp.write_text(lock_hash + "\n", encoding="ascii")
         print(f"Frontend dependencies verified with Node.js {node_version}")
     print(f"Environment verified: {sys.executable}")
     if args.prefetch_model:
