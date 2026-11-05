@@ -37,3 +37,4 @@ htmlcov/
 Thumbs.db
 *.log
 temp.prompt
+documentation_prune_candidates.csv
