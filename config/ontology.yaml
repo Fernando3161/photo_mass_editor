@@ -1,0 +1,93 @@
+
+# PRE-APPROVED TRAVEL PHOTO VOCABULARY
+# Canonical labels, stored in English.
+# Owner-editable and extensible.
+
+primary_subject:
+  people:
+    - person
+    - group
+    - crowd
+
+  architecture_and_history:
+    - building
+    - religious building
+    - palace
+    - castle or fortress
+    - tower
+    - bridge
+    - monument
+    - archaeological ruins
+    - sculpture
+    - artwork
+    - museum artifact
+
+  urban_and_daily_life:
+    - street
+    - square
+    - market
+    - skyline
+    - harbor
+    - food
+    - souvenir
+
+  nature_and_landscapes:
+    - mountain
+    - valley
+    - forest
+    - garden
+    - beach
+    - coastline
+    - river
+    - lake
+    - waterfall
+    - desert
+
+  animals_and_transport:
+    - cat
+    - dog
+    - other animal
+    - boat
+    - train
+    - vehicle
+
+content_tags:
+  - architecture
+  - archaeology
+  - heritage
+  - religion
+  - museum
+  - art
+  - culture
+  - performance
+  - people
+  - animals
+  - urban
+  - street life
+  - interior
+  - landscape
+  - nature
+  - geology
+  - water
+  - coast
+  - food
+  - markets
+  - transport
+  - infrastructure
+  - souvenirs
+
+condition_tags:
+  - daytime
+  - nighttime
+  - golden hour
+  - twilight
+  - overcast
+  - backlit
+  - low light
+  - harsh shadows
+  - hazy
+  - blurred
+  - high contrast
+  - rainy
+  - snowy
+  - reflections
