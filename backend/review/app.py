@@ -208,7 +208,7 @@ def create_app(
         yield
         executor.shutdown(wait=True, cancel_futures=True)
 
-    app = FastAPI(title="Photo Mass Editor", version="0.5.0", lifespan=lifespan)
+    app = FastAPI(title="Photo Mass Editor", version="2.0.0", lifespan=lifespan)
     app.state.data_dir = root
     app.state.edit_executor = executor
     allowed_hosts = {"localhost", "127.0.0.1", "[::1]"}

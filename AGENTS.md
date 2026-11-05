@@ -26,7 +26,7 @@ Build a local-first, non-destructive photographic catalog, review workstation, a
 ## Development discipline
 Use the active dedicated phase branch; do not modify main. Follow its owner-approved scope, implement only that scope, write focused tests, and give the owner a review handoff listing exact tests run and not run, failures and corrections, unresolved risks, and reproduction steps. Leave the resulting working tree for owner review and manual staging/commit. Never claim visual correctness from software tests alone. Do not begin a new phase or merge without owner review. Use repository-relative paths and no machine-specific configuration.
 Every runnable development or review procedure must create its required generated directories before writing files and verify that required input files exist. Do not rely on empty directories being present in Git; private review data remains ignored. Document commands that work from a fresh PowerShell or Linux shell and record failed commands and corrections in the owner handoff.
-The V2 ontology-prefill branch still awaits owner visual and workflow acceptance. Its pending checks and reproduction commands are in README.md. Removing historical phase documents does not approve this branch.
+The V2 ontology-prefill work was included in the owner-authorized V2 release. Visual and workflow checks still lack recorded evidence; their reproduction commands are in README.md. Release authorization does not establish photographic correctness.
 Do not introduce .codex subagents by default; introduce only with a measured, documented benefit.
 
 ## Heavy/costly operations

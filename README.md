@@ -2,7 +2,7 @@
 
 A local photography catalog, review workstation, and controlled editing pipeline. Originals stay unchanged. Every edit is a separate version; only an image you explicitly approve can enter a website collection.
 
-Current release: **V1.0.0**. See [release notes and known limits](docs/V1_RELEASE_NOTES.md).
+Current release: **V2.0.0**. See [V2 release notes and known limits](docs/V2_RELEASE_NOTES.md). [V1 release notes](docs/V1_RELEASE_NOTES.md) remain available.
 
 | Original photo | Owner-approved generative edit |
 | :---: | :---: |
@@ -192,7 +192,7 @@ if ((docker info --format '{{.OSType}}') -ne 'linux') { throw 'Start Docker Desk
 & .\scripts\docker\evaluate.ps1
 ```
 
-Place owner-selected photos in `data/input/` before starting; an empty input is also supported. The default revision is `dev/v2-05-ontology-prefill`, the current successor to V2-04. Use `-Revision <branch-or-SHA>` to evaluate another revision, `-Repository <URL-or-local-Git-path>` for another source, and `-Port 8001` if port 8000 is occupied. The selected revision must be fetchable from that repository. First build needs access to the Docker base images and pinned package sources; later builds reuse Docker layers.
+Place owner-selected photos in `data/input/` before starting; an empty input is also supported. The default revision is `main`. Use `-Revision <branch-or-SHA>` to evaluate another revision, `-Repository <URL-or-local-Git-path>` for another source, and `-Port 8001` if port 8000 is occupied. The selected revision must be fetchable from that repository. First build needs access to the Docker base images and pinned package sources; later builds reuse Docker layers.
 
 The launcher runs backend `unittest`, frontend `vitest`, and the production frontend build inside the isolated workspace. It stops on failure, keeps the partial run, and writes logs and a failure report. It makes no paid API calls. When the authenticated health check passes, it prints a run ID, URL, username, and password. Open that URL in the Windows browser. The host port binds to `127.0.0.1`; do not forward it to the network. The app retains its Basic authentication, Host checks, and origin checks.
 
@@ -252,7 +252,7 @@ For owner-controlled manual acceptance, use the browser workflow above and recor
 
 The successful Docker run preceded the final failure-report and input-link guards. Those guards passed PowerShell parsing; an invalid-revision exercise produced a private failure report with `NOT_RUN` checks. The complete happy path was not rerun after those guards. During development, normal Git stderr initially stopped the PowerShell wrapper, a backslash expression failed parsing, `docker cp` could not create a Linux symlink on NTFS, and port 8000 was occupied. The wrapper now checks native exit codes, uses string replacement, materializes the workspace through a Linux bind mount, and checks the requested port before cloning. A later non-ASCII character in failure-report text also broke Windows PowerShell parsing and was replaced. Failed run directories remain ignored for inspection.
 
-Owner browser visual review, photographic quality, recognition accuracy, representative local and batch edits, version approval and rejection, approved-only export and privacy, and 200-photo performance are **NOT RUN**. Paid calls, cloud uploads, and GitHub Actions for this branch are **NOT RUN**. The owner should inspect these workflows in the browser, record PASS / FAIL / NOT_RUN with evidence in the private run report or a separate review note, and decide branch acceptance before staging, committing, merging, or release. The `docs/TESTING_AND_ACCEPTANCE.md` referenced by the earlier task is absent from this branch; this README and the run report are the available testing baseline. Software tests do not establish visual correctness.
+Owner browser visual review, photographic quality, recognition accuracy, representative local and batch edits, version approval and rejection, approved-only export and privacy, and 200-photo performance are **NOT RUN** in this Docker record. Paid calls and cloud uploads were **NOT RUN**. The owner authorized the V2 release with these limits documented; future checks should record PASS / FAIL / NOT_RUN with evidence in a private run report or review note. The `docs/TESTING_AND_ACCEPTANCE.md` referenced by the earlier task is absent from this branch; this README and the run report are the available testing baseline. Software tests do not establish visual correctness.
 
 ## Provider configuration
 
@@ -260,9 +260,9 @@ Generative editing is disabled until you supply a server-side key. Copy config/o
 
 For an isolated Docker run, use the copy-and-mount command in [Local Docker release evaluation](#local-docker-release-evaluation); a fresh checkout does not inherit the local config file.
 
-## Current branch review: ontology prefill
+## V2 ontology prefill evaluation record
 
-The `dev/v2-05-ontology-prefill` implementation is awaiting owner acceptance. Synthetic checks previously passed: 102 backend tests, 23 frontend tests, and the production build. A read-only pilot on 20 private photos proposed subjects for 12, content tags for 12, and conditions for 8; mean local inference time was about three seconds per photo. Those counts measure coverage, not label accuracy. Owner photo-by-photo accuracy, precision/recall, preset agreement, browser layout and workflow, correction clicks/time, Linux execution, and a 200-photo run remain **not run**. No paid API call, photo edit, or export was part of that pilot.
+The `dev/v2-05-ontology-prefill` implementation was included in V2 with owner release authorization. Synthetic checks passed: 102 backend tests, 23 frontend tests, and the production build. A read-only pilot on 20 private photos proposed subjects for 12, content tags for 12, and conditions for 8; mean local inference time was about three seconds per photo. Those counts measure coverage, not label accuracy. Owner photo-by-photo accuracy, precision/recall, preset agreement, browser layout and workflow, correction clicks/time, and a 200-photo run remain **not run**. No paid API call, photo edit, or export was part of that pilot. The Docker record above covers Linux execution, but not those visual checks.
 
 To reproduce the private pilot after running the launcher, use a fresh PowerShell shell at the repository root:
 
@@ -276,7 +276,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Wrong Python interpreter.' }
 if ($LASTEXITCODE -ne 0) { throw 'Pilot evaluation failed.' }
 ```
 
-On Linux, create `data/evidence/`, check those catalog/model files and `.venv/bin/python`, verify its `sys.prefix`, then run `.venv/bin/python scripts/evaluate_ontology_pilot.py`. Inspect the private `data/evidence/ontology-pilot.png` and `.json` against each photograph. Record correct and incorrect subjects, content/condition tags, draft presets, missing labels, clicks, and correction time. In the browser, test a provisional suggestion and prompt preview before acceptance, edit a proposed field, accept and undo separate suggestions, verify owner-entered values remain intact, and review a bounded multi-photo selection. Confirm that preview creates no prompt version and acceptance does not approve a prompt, edit, or image. The owner decides whether to accept this branch before staging, merging, or starting another phase.
+On Linux, create `data/evidence/`, check those catalog/model files and `.venv/bin/python`, verify its `sys.prefix`, then run `.venv/bin/python scripts/evaluate_ontology_pilot.py`. Inspect the private `data/evidence/ontology-pilot.png` and `.json` against each photograph. Record correct and incorrect subjects, content/condition tags, draft presets, missing labels, clicks, and correction time. In the browser, test a provisional suggestion and prompt preview before acceptance, edit a proposed field, accept and undo separate suggestions, verify owner-entered values remain intact, and review a bounded multi-photo selection. Confirm that preview creates no prompt version and acceptance does not approve a prompt, edit, or image. Record any visual and workflow findings as follow-up evidence for V2.
 
 Possible later work includes local inpainting, RAW/HEIC support, and packaging without a Python/Node toolchain. Each needs a separate feasibility and owner decision; local inpainting remains a generative edit with derivative input, consent, an immutable pending attempt, and visual approval.
 

@@ -1,6 +1,6 @@
 param(
     [ValidateSet('Start','Stop','Resume','Snapshot','Status')][string]$Action = 'Start',
-    [string]$Revision = 'dev/v2-05-ontology-prefill',
+    [string]$Revision = 'main',
     [string]$Repository = '',
     [string]$RunId = '',
     [ValidateRange(1,65535)][int]$Port = 8000,
