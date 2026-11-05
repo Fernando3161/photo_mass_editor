@@ -6,4 +6,5 @@ uvicorn==0.54.0
 numpy==2.5.4
 onnxruntime==1.31.1
 tokenizers==0.23.3
+PyYAML==6.0.3
 c2pa-python==0.38.0

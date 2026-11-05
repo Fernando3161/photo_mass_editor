@@ -30,7 +30,7 @@ from . import local_corrections as local
 from . import local_batch
 from . import prompt_batch
 from . import prompt_refinement
-from .prompts import PromptConflict, approve_prompt, create_compiled_prompt, revise_prompt
+from .prompts import PromptConflict, approve_prompt, create_compiled_prompt, preview_with_form, revise_prompt
 from .editing import (
     EditConflict, EditProvider, batch_jobs, cancel_job, enqueue_batch,
     list_jobs, preview_batch, recover_jobs, review_version, run_job, save_mask, version_media,
@@ -170,6 +170,7 @@ class SuggestionDecision(BaseModel):
     fields: list[str] = Field(default_factory=list)
     expected_revision: int = Field(ge=0)
     dismiss: bool = False
+    overrides: dict = Field(default_factory=dict)
 
 
 class LocationBatch(BaseModel):
@@ -418,7 +419,7 @@ def create_app(
     @app.post("/api/catalog/suggestions/{suggestion_id}/decide")
     def decide_prefill(suggestion_id: str, payload: SuggestionDecision) -> dict:
         try:
-            return decide_suggestion(root, suggestion_id, payload.fields, payload.expected_revision, payload.dismiss)
+            return decide_suggestion(root, suggestion_id, payload.fields, payload.expected_revision, payload.dismiss, payload.overrides)
         except ReviewNotFound as exc:
             raise HTTPException(status_code=404, detail="Suggestion not found") from exc
         except (ValueError, ReviewConflict) as exc:
@@ -514,6 +515,18 @@ def create_app(
         except PromptConflict as exc:
             db.rollback()
             raise HTTPException(status_code=409, detail={"message": "Prompt conflicts", "conflicts": exc.conflicts}) from exc
+        finally:
+            db.close()
+
+    @app.post("/api/photos/{photo_id}/prompts/preview")
+    def preview_photo_prompt(photo_id: str, payload: ReviewSave) -> dict:
+        db = connect(root)
+        try:
+            return preview_with_form(db, photo_id, payload.model_dump())
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="Photo not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         finally:
             db.close()
 

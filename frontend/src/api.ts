@@ -74,8 +74,8 @@ export const api = {
   runPrefill: (ids: string[], offline: boolean) => request<{ results: CatalogSuggestion[] }>('/api/catalog/suggestions/run', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photo_ids: ids, authorized: true, offline }),
   }),
-  decideSuggestion: (id: string, fields: string[], expectedRevision: number, dismiss = false) => request<{ suggestion: CatalogSuggestion; photo: PhotoDetail }>(`/api/catalog/suggestions/${id}/decide`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields, expected_revision: expectedRevision, dismiss }),
+  decideSuggestion: (id: string, fields: string[], expectedRevision: number, dismiss = false, overrides: Record<string, string | string[]> = {}) => request<{ suggestion: CatalogSuggestion; photo: PhotoDetail }>(`/api/catalog/suggestions/${id}/decide`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields, expected_revision: expectedRevision, dismiss, overrides }),
   }),
   undoSuggestion: (id: string) => request<{ suggestion: CatalogSuggestion; photo: PhotoDetail }>(`/api/catalog/suggestions/${id}/undo`, { method: 'POST' }),
   locationPreview: (ids: string[], cityId: string) => request<LocationPreview>('/api/catalog/location/preview', {
@@ -107,6 +107,9 @@ export const api = {
     body: JSON.stringify({ photo_ids: photoIds, authorized }),
   }),
   compilePrompt: (photoId: string) => request<CompiledPrompt>(`/api/photos/${photoId}/prompts/compile`, { method: 'POST' }),
+  previewPrompt: (photoId: string, payload: SavePayload) => request<{ proposed_text: string; conflicts: string[]; unapproved: boolean }>(`/api/photos/${photoId}/prompts/preview`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }),
   revisePrompt: (promptId: string, compiledText: string) => request<CompiledPrompt>(`/api/prompts/${promptId}`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ compiled_text: compiledText }),
   }),

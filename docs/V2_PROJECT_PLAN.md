@@ -1,6 +1,6 @@
 # V2 project plan — faster local editing and review
 
-Status: Priority 4 implementation on `dev/v2-04-provenance-launch` for owner review, 2026-11-04. The owner requested this phase from the clean, committed Priority 3 branch at `e621a5e`. This plan responds to the private `CRITICAL_EVALUATION_2026-11-02.local.md`; that report stays excluded from Git. Earlier owner acceptance and the Priority 4 review gate remain recorded in their reports.
+Status: Priority 5 ontology prefill implementation on `dev/v2-05-ontology-prefill` for owner review, 2026-11-05. The owner prepared and committed the ontology on the Priority 4 branch at `6878f4c`, then requested the feature branch. Earlier acceptance gates remain recorded in their reports.
 
 ## Product outcome and boundaries
 
@@ -44,10 +44,14 @@ Acceptance: mocked providers prove no unexpected network requests, source-photo 
 
 Acceptance: mock usage calculations and billing reconciliation are independently testable; unknown actual charges stay visibly unknown. C2PA verification succeeds on exported copies and fails after tampering, while approved bytes remain unchanged. Windows and Linux fresh-clone launch tests run without paid calls or private photos.
 
+## Priority 5 — ontology catalog prefill
+
+Use the committed owner ontology for canonical subjects, content tags and conditions; allow aliases and free-text owner labels. Retain the pinned local CLIP model, independently score concepts with ambiguity rules, and measure quality against the same private 20-photo pilot. Show editable provisional catalog values and a deterministic, conflict-aware, unapproved prompt preview immediately after single-photo recognition. Owner acceptance persists metadata; a separate click saves an unapproved immutable prompt version. Batch review remains bounded to 20 and supports acceptance/undo. Local correction recipe recommendations remain separate from generative draft presets and do not need prompt approval. No paid calls or image approval are part of this phase. Acceptance requires owner photo-by-photo precision/recall and click review in addition to automated tests.
+
 ## Later candidates, subject to evidence
 
 Local inpainting for bounded people/object removal, RAW/HEIC ingestion, and packaging for users without a Python/Node toolchain merit separate feasibility decisions. Local inpainting remains generative: it receives only the publication derivative, keeps mask limitations visible, creates a pending immutable attempt, and needs explicit semantic-change consent where applicable. Do not add these to the default local correction path without a visual pilot and reproducible model/runtime plan.
 
 ## Delivery sequence and gates
 
-Use dedicated V2 branches in this order: `dev/v2-01-local-pipeline`, `dev/v2-02-batch-workflow`, `dev/v2-03-intelligence-prompts`, and `dev/v2-04-provenance-launch`. A small cost-accounting fix may be isolated earlier if the owner wants paid calls before V2's last milestone. Each branch updates the schema, dependency lock/setup, tests, UI guidance, decision log, and technical report as applicable. Use synthetic fixtures and mocked providers in CI; conduct the 20-photo owner pilot before a 200-photo batch. Phase acceptance is based on measured usability and visual quality as well as software tests. The owner reviews each branch before the next implementation phase, merge, or release.
+Use dedicated V2 branches in this order: `dev/v2-01-local-pipeline`, `dev/v2-02-batch-workflow`, `dev/v2-03-intelligence-prompts`, `dev/v2-04-provenance-launch`, and `dev/v2-05-ontology-prefill`. Each branch updates the dependency lock/setup, tests, UI guidance, decision log, and technical report as applicable. Use synthetic fixtures and mocked providers in CI; conduct the 20-photo owner pilot before a 200-photo batch. Phase acceptance is based on measured usability and visual quality as well as software tests. The owner reviews each branch before the next implementation phase, merge, or release.

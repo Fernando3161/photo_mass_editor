@@ -18,6 +18,13 @@ from backend.catalog.ingestion import import_photo, sha256
 from backend.review.app import create_app
 from backend.review.catalog_prefill import match_city
 from backend.review.local_model import MANIFEST, ModelManager, ModelUnavailable
+from backend.review.ontology import load_ontology
+
+
+def ranking(**high):
+    ontology = load_ontology()
+    return [{"label": f"{kind}:{name}", "similarity": high.get(name, 20.0)}
+            for kind, values in ontology["concepts"].items() for name, _, _ in values.values()]
 
 
 class FakeRecognizer:
@@ -29,12 +36,8 @@ class FakeRecognizer:
 
     def classify(self, path, *, offline=False):
         self.calls.append((path, offline))
-        return {"ranking": [
-            {"label": "an opera house", "similarity": 31.0},
-            {"label": "a parliament building", "similarity": 22.0},
-            {"label": "a night photograph", "similarity": 21.0},
-            {"label": "a daytime photograph", "similarity": 20.0},
-        ], "measurements": {"mean_luminance": 0.5}}
+        return {"ranking": ranking(building=31.0, architecture=29.0, daytime=25.0),
+                "measurements": {"mean_luminance": 0.5}}
 
 
 class CatalogPrefillTests(unittest.TestCase):
@@ -59,12 +62,7 @@ class CatalogPrefillTests(unittest.TestCase):
         return self.client.post("/api/catalog/suggestions/run", json={"photo_ids": [self.photo_id], "authorized": True})
 
     def test_new_local_candidates_are_reviewable_search_terms_only(self):
-        self.fake.classify = lambda path, offline=False: {"ranking": [
-            {"label": "a waterfall", "similarity": 31.0},
-            {"label": "a river", "similarity": 25.0},
-            {"label": "a hazy photograph", "similarity": 22.0},
-            {"label": "a clear photograph", "similarity": 18.0},
-        ], "measurements": {}}
+        self.fake.classify = lambda path, offline=False: {"ranking": ranking(waterfall=31.0, river=25.0, hazy=24.0), "measurements": {}}
         suggestion = self.run_prefill()
         self.assertEqual(suggestion.status_code, 200, suggestion.text)
         proposed = suggestion.json()["results"][0]["proposed"]
@@ -90,7 +88,7 @@ class CatalogPrefillTests(unittest.TestCase):
         first = self.run_prefill()
         self.assertEqual(first.status_code, 200, first.text)
         suggestion = first.json()["results"][0]
-        self.assertEqual(suggestion["proposed"]["primary_subject"], "opera house")
+        self.assertEqual(suggestion["proposed"]["primary_subject"], "building")
         self.assertEqual(suggestion["evidence"]["location"]["status"], "NO_GPS")
         self.assertEqual(len(self.fake.calls), 1)
         self.assertEqual(self.fake.calls[0][0].suffix, ".png")
@@ -100,7 +98,7 @@ class CatalogPrefillTests(unittest.TestCase):
         accepted = self.client.post(f"/api/catalog/suggestions/{suggestion['id']}/decide", json={"fields": ["primary_subject", "content_tags", "preset_id"], "expected_revision": 0})
         self.assertEqual(accepted.status_code, 200, accepted.text)
         item = accepted.json()["photo"]
-        self.assertEqual(item["primary_subject"], "opera house")
+        self.assertEqual(item["primary_subject"], "building")
         self.assertEqual(item["draft"]["preset_id"], "architecture-clarity")
         self.assertEqual(item["draft"]["ai_allowance"], 0)
         self.assertFalse(item["draft"]["semantic_change_consent"])
@@ -183,7 +181,7 @@ class CatalogPrefillTests(unittest.TestCase):
         self.assertEqual(photo["editorial_description"], "Owner description")
         self.assertEqual((photo["city"], photo["country"]), ("Vienna", "Austria"))
         self.assertEqual(photo["draft"]["preset_id"], "portrait-gentle")
-        self.assertEqual({tag["display_name"] for tag in photo["tags"]}, {"facade", "opera house"})
+        self.assertEqual({tag["display_name"] for tag in photo["tags"]}, {"facade", "architecture"})
 
     def test_accepting_subject_does_not_promote_unrelated_ai_tag(self):
         db = connect(self.data)
@@ -193,6 +191,7 @@ class CatalogPrefillTests(unittest.TestCase):
             db.commit()
         finally:
             db.close()
+
         suggestion = self.run_prefill().json()["results"][0]
         accepted = self.client.post(f"/api/catalog/suggestions/{suggestion['id']}/decide", json={"fields": ["primary_subject"], "expected_revision": 0})
         self.assertEqual(accepted.status_code, 200, accepted.text)
@@ -202,6 +201,46 @@ class CatalogPrefillTests(unittest.TestCase):
             self.assertEqual(tuple(tag), ("AI", 0, 0.4))
         finally:
             db.close()
+
+    def test_provisional_prompt_preview_overrides_and_no_duplicate_versions(self):
+        suggestion = self.run_prefill().json()["results"][0]
+        form = {"expected_revision": 0, "primary_subject": "building", "content_tags": ["architecture", "people"],
+                "condition_tags": ["daytime"], "preset_id": "architecture-clarity"}
+        preview = self.client.post(f"/api/photos/{self.photo_id}/prompts/preview", json=form)
+        self.assertEqual(preview.status_code, 200, preview.text)
+        self.assertTrue(preview.json()["unapproved"])
+        self.assertIn("Observed tags: architecture, people, daytime", preview.json()["proposed_text"])
+        conflict = self.client.post(f"/api/photos/{self.photo_id}/prompts/preview", json=form | {
+            "user_instructions": "Remove the sky.", "approved_constraints": "Keep the sky unchanged."})
+        self.assertEqual(conflict.status_code, 200, conflict.text)
+        self.assertTrue(conflict.json()["conflicts"])
+        self.assertEqual(conflict.json()["proposed_text"], "")
+        before = self.client.get(f"/api/photos/{self.photo_id}").json()
+        self.assertEqual(before["prompt_history"], [])
+        self.assertIsNone(before["primary_subject"])
+        invalid_preset = self.client.post(f"/api/catalog/suggestions/{suggestion['id']}/decide", json={
+            "fields": ["preset_id"], "expected_revision": 0, "overrides": {"preset_id": "missing-preset"}})
+        self.assertEqual(invalid_preset.status_code, 409)
+        accepted = self.client.post(f"/api/catalog/suggestions/{suggestion['id']}/decide", json={
+            "fields": ["primary_subject", "content_tags", "condition_tags", "preset_id"], "expected_revision": 0,
+            "overrides": {"primary_subject": "building", "content_tags": ["architecture", "people"],
+                          "condition_tags": ["daytime"], "preset_id": "architecture-clarity"}})
+        self.assertEqual(accepted.status_code, 200, accepted.text)
+        self.assertEqual({item["display_name"] for item in accepted.json()["photo"]["tags"]}, {"architecture", "people", "daytime"})
+        compiled = self.client.post(f"/api/photos/{self.photo_id}/prompts/compile")
+        self.assertEqual(compiled.status_code, 200, compiled.text)
+        repeat = self.client.post(f"/api/photos/{self.photo_id}/prompts/compile")
+        self.assertEqual(repeat.json()["id"], compiled.json()["id"])
+        self.assertFalse(repeat.json()["approved_for_job"])
+        self.assertEqual(len(self.client.get(f"/api/photos/{self.photo_id}").json()["prompt_history"]), 1)
+
+    def test_ontology_hash_invalidates_cached_suggestion(self):
+        first = self.run_prefill().json()["results"][0]
+        with patch("backend.review.catalog_prefill.load_ontology") as loader:
+            loader.return_value = load_ontology() | {"sha256": "changed"}
+            second = self.run_prefill().json()["results"][0]
+        self.assertNotEqual(first["id"], second["id"])
+        self.assertEqual(len(self.fake.calls), 2)
 
     def test_bulk_location_preview_apply_undo_and_stale_preview(self):
         city = self.city()

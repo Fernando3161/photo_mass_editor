@@ -31,7 +31,8 @@ describe('local catalog prefill panel', () => {
   it('requires local-run authorization and supports field acceptance and undo', async () => {
     const user = userEvent.setup()
     const onPhoto = vi.fn()
-    render(<CatalogPrefillPanel photo={photo} visiblePhotoIds={['photo-1']} beforeMutation={async () => true} onPhoto={onPhoto} onCatalogRefresh={async () => {}} />)
+    const onProvisional = vi.fn()
+    render(<CatalogPrefillPanel photo={photo} visiblePhotoIds={['photo-1']} beforeMutation={async () => true} onPhoto={onPhoto} onCatalogRefresh={async () => {}} onProvisional={onProvisional} />)
     const section = screen.getByText('Catalog suggestions').closest('details') as HTMLDetailsElement
     expect(section.open).toBe(false)
     await user.click(screen.getByText('Catalog suggestions'))
@@ -42,6 +43,8 @@ describe('local catalog prefill panel', () => {
     await user.click(start)
     await screen.findByRole('button', { name: 'Accept selected empty fields' })
     expect(calls.run).toHaveBeenCalledWith(['photo-1'], false)
+    expect(onProvisional).toHaveBeenCalledWith(suggestion)
+    expect(calls.decide).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Accept selected empty fields' }))
     await waitFor(() => expect(calls.decide).toHaveBeenCalledWith('suggestion-1', expect.arrayContaining(['primary_subject']), 0, false))
     expect(onPhoto).toHaveBeenCalled()

@@ -10,7 +10,8 @@ from uuid import uuid4
 
 from backend.catalog.database import connect
 from backend.catalog.ingestion import utc_now
-from .local_model import LABELS, MANIFEST, SETTINGS, ModelManager
+from .local_model import MANIFEST, SETTINGS, ModelManager
+from .ontology import load_ontology
 from .service import ReviewConflict, ReviewNotFound, _photo, _slug, _tags, _upsert_subject
 
 MAX_BATCH = 20
@@ -25,9 +26,9 @@ def _hash(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _fingerprint(photo, cities) -> str:
+def _fingerprint(photo, cities, ontology_hash: str) -> str:
     city_version = [(row["id"], row["revision"]) for row in cities]
-    return hashlib.sha256(json.dumps([photo["sha256"], photo["thumbnail_sha256"], MANIFEST["revision"], SETTINGS, city_version], sort_keys=True).encode()).hexdigest()
+    return hashlib.sha256(json.dumps([photo["sha256"], photo["thumbnail_sha256"], MANIFEST["revision"], SETTINGS, ontology_hash, city_version], sort_keys=True).encode()).hexdigest()
 
 
 def _distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -157,31 +158,134 @@ def _write(db, photo_id: str, before: dict, after: dict) -> dict:
     return _snapshot(db, photo_id)
 
 
-def _proposal(photo, result: dict, location: dict) -> tuple[dict, dict]:
-    ranking = result["ranking"]
-    content = [entry for entry in ranking if entry["label"] in LABELS]
-    first = content[0]
-    second = content[1]
-    # CLIP scores are relative similarities, not calibrated probabilities.
-    clear = first["similarity"] - second["similarity"] >= 1.5
-    noun = first["label"].removeprefix("a ").removeprefix("an ") if clear else ""
-    tags = [noun] if noun else []
+SUBJECT_TAGS = {
+    "people": ("people",), "architecture_and_history": (),
+    "urban_and_daily_life": ("urban",), "nature_and_landscapes": ("landscape", "nature"),
+    "animals_and_transport": (),
+}
+SPECIFIC_TAGS = {
+    "building": ("architecture",), "religious building": ("architecture", "religion"),
+    "palace": ("architecture", "heritage"), "castle or fortress": ("architecture", "heritage"),
+    "tower": ("architecture",), "bridge": ("architecture", "infrastructure"),
+    "monument": ("heritage",),
+    "archaeological ruins": ("archaeology", "heritage", "architecture"),
+    "sculpture": ("art",), "artwork": ("art",), "museum artifact": ("museum", "art"),
+    "river": ("water",), "lake": ("water",), "waterfall": ("water",),
+    "beach": ("coast", "water"), "coastline": ("coast", "water"),
+    "cat": ("animals",), "dog": ("animals",), "other animal": ("animals",),
+    "boat": ("transport",), "train": ("transport",), "vehicle": ("transport",),
+    "food": ("food",), "market": ("markets",), "souvenir": ("souvenirs",),
+}
+
+
+def _proposal(photo, result: dict, location: dict, ontology: dict) -> tuple[dict, dict]:
+    # Scores are model similarities, never confidence probabilities. Compare within each
+    # independently scored vocabulary group and retain the margin in evidence.
+    scores = {entry["label"]: float(entry["similarity"]) for entry in result["ranking"]}
+    groups = {}
+    for kind, concepts in ontology["concepts"].items():
+        ranked = sorted(((name, scores[f"{kind}:{name}"]) for name, _, _ in concepts.values()
+                         if f"{kind}:{name}" in scores), key=lambda item: item[1], reverse=True)
+        groups[kind] = ranked
+    subjects = groups["primary_subject"]
+    median = sorted(value for _, value in subjects)[len(subjects) // 2] if subjects else 0
+    subject_strength = subjects[0][1] - median if subjects else 0
+    subject_margin = round(subjects[0][1] - subjects[1][1], 3) if len(subjects) > 1 else None
+    noun = subjects[0][0] if subjects and subject_strength >= 2.0 and (
+        subject_margin is None or subject_margin >= 1.0 or subject_strength >= 3.2 and subject_margin >= .3) else ""
+    if noun == "museum artifact" and subject_margin is not None and subject_margin < 1.4:
+        noun = ""
+    if not noun and subjects and subject_strength >= 2.5 and subject_margin is not None and subject_margin < 1.0:
+        # Two close specific labels in the same family can still justify a broad label.
+        categories = ontology["concepts"]["primary_subject"]
+        first_family = categories[subjects[0][0].casefold()][1]
+        second_family = categories[subjects[1][0].casefold()][1]
+        architecture_subjects = {"building", "religious building", "palace", "castle or fortress", "tower"}
+        animal_subjects = {"cat", "dog", "other animal"}
+        pair = {subjects[0][0], subjects[1][0]}
+        fallback = ("building" if pair <= architecture_subjects else
+                    "other animal" if pair <= animal_subjects else
+                    subjects[0][0] if {name for name, _ in subjects[:3]} <= {"skyline", "street", "square"} else
+                    "person" if first_family == "people" else "")
+        noun = fallback if first_family == second_family and fallback and fallback.casefold() in categories else ""
+    content_scores = groups["content_tags"]
+    content_median = sorted(value for _, value in content_scores)[len(content_scores) // 2] if content_scores else 0
+    tags = []
+    allowed = {item[0].casefold() for item in content_scores}
+    if noun:
+        family = ontology["concepts"]["primary_subject"][noun.casefold()][1]
+        for name in (*SUBJECT_TAGS.get(family, ()), *SPECIFIC_TAGS.get(noun, ())):
+            if name.casefold() in allowed and name not in tags:
+                tags.append(name)
+    # Independent content evidence needs separation from nearby alternatives.
+    # A supported subject can add its broad tags even when content prompts tie.
+    if content_scores:
+        lead, lead_score = content_scores[0]
+        lead_gap = lead_score - content_scores[1][1] if len(content_scores) > 1 else lead_score - content_median
+        if lead_score >= content_median + 2.5 and lead_gap >= (2.0 if noun else 1.0):
+            for name, value in content_scores:
+                if value >= max(content_median + 2.5, lead_score - 3.0) and name not in tags:
+                    tags.append(name)
+        for name, value in content_scores:
+            if name in {"people", "animals", "water"} and value >= content_median + 2.5 and name not in tags:
+                tags.append(name)
+    tags = tags[:5]
+    condition_scores = groups["condition_tags"]
+    condition_median = sorted(value for _, value in condition_scores)[len(condition_scores) // 2] if condition_scores else 0
     condition = []
-    condition_scores = {entry["label"]: entry["similarity"] for entry in ranking if entry["label"] in SETTINGS["conditions"]}
-    for candidate, counterpart, name in (
-        ("a night photograph", "a daytime photograph", "night"),
-        ("a backlit photograph", "an evenly lit photograph", "backlit"),
-        ("a blurry photograph", "a sharp photograph", "blurred"),
-        ("a hazy photograph", "a clear photograph", "hazy"),
-    ):
-        if candidate in condition_scores and counterpart in condition_scores and condition_scores[candidate] > condition_scores[counterpart] + 1.5:
-            condition.append(name)
-    preset = "architecture-clarity" if noun in {"opera house", "parliament building", "church", "cathedral", "museum", "palace", "castle", "bridge", "monument", "building facade"} else "natural-balance"
-    description = f"Travel photograph of {noun}." if noun else ""
+    measured_light = result.get("measurements", {}).get("mean_luminance")
+    day_score = scores.get("condition_tags:daytime", 0)
+    night_score = scores.get("condition_tags:nighttime", 0)
+    outdoor_subjects = {"building", "religious building", "palace", "castle or fortress", "tower", "bridge", "monument", "archaeological ruins",
+                        "street", "square", "skyline", "harbor", "mountain", "valley", "forest", "garden",
+                        "beach", "coastline", "river", "lake", "waterfall", "desert"}
+    outdoor = noun in outdoor_subjects or bool({"landscape", "nature", "coast"} & set(tags))
+    if "nighttime" in ontology["concepts"]["condition_tags"] and night_score >= condition_median + 2.0 and night_score >= day_score + 1.0 and measured_light is not None and measured_light < .35:
+        condition.append("nighttime")
+    elif "daytime" in ontology["concepts"]["condition_tags"] and (day_score >= condition_median + 1.0 or outdoor and measured_light is not None and measured_light >= .42):
+        condition.append("daytime")
+    if condition_scores:
+        top_condition, top_score = condition_scores[0]
+        gap = top_score - condition_scores[1][1] if len(condition_scores) > 1 else top_score - condition_median
+        if top_condition not in {"daytime", "nighttime"} and top_score >= condition_median + 4.0 and gap >= 2.0:
+            condition.append(top_condition)
+    architecture = "architecture" in tags or noun in {"building", "religious building", "palace", "castle or fortress", "tower", "bridge", "archaeological ruins"}
+    people = "people" in tags or noun in {"person", "group", "crowd"}
+    art = "art" in tags or noun in {"artwork", "sculpture", "museum artifact"}
+    landscape = "landscape" in tags or "nature" in tags
+    if architecture and "nighttime" in condition:
+        preset, local_recipe, reason = "night-architecture", "night", "Architecture with a supported nighttime condition"
+    elif art:
+        preset, local_recipe, reason = "museum-artwork", "artwork", "Artwork or museum object is visible"
+    elif noun in {"group", "crowd"}:
+        preset, local_recipe, reason = "group-photo", "people", "Multiple people are visible"
+    elif people:
+        preset, local_recipe, reason = "portrait-gentle", "people", "People are visible"
+    elif architecture:
+        preset, local_recipe, reason = "architecture-clarity", "architecture", "Architectural content is visible"
+    elif "food" in tags or noun == "food":
+        preset, local_recipe, reason = "food", "natural", "Food is visible"
+    elif landscape or noun in {"skyline", "harbor", "coastline", "valley"} and photo["width"] / max(1, photo["height"]) > 1.8:
+        preset, local_recipe, reason = "panoramic-scene", "landscape", "Landscape or wide composition is visible"
+    else:
+        preset, local_recipe, reason = "natural-balance", "natural", "No specialized rule is well supported"
+    other = " with people in view" if people and noun not in {"person", "group", "crowd"} else ""
+    lighting = "Daytime " if "daytime" in condition else "Nighttime " if "nighttime" in condition else ""
+    if noun:
+        label = "animal" if noun == "other animal" else noun
+        article = "" if noun in {"archaeological ruins", "artwork", "food"} else "an " if label[0] in "aeiou" else "a "
+        description = f"{lighting}travel photograph of {article}{label}{other}."
+    elif tags:
+        description = f"{lighting}travel photograph showing {' and '.join(tags[:2])}."
+    else:
+        description = ""
     proposal = {"primary_subject": noun, "content_tags": tags, "condition_tags": condition,
                 "editorial_description": description, "preset_id": preset,
                 "city": location["city"] or "", "country": location["country"] or ""}
-    evidence = {"top_labels": content[:5], "conditions": condition_scores, "location": location,
+    evidence = {"top_labels": [{"label": name, "similarity": value} for name, value in subjects[:5]],
+                "content_scores": content_scores, "conditions": dict(condition_scores), "subject_margin": subject_margin,
+                "preset_reason": reason, "local_recipe": local_recipe, "ontology_sha256": ontology["sha256"],
+                "location": location,
                 "measurements": result.get("measurements", {}),
                 "exif": {"capture_datetime_raw": photo["capture_datetime_raw"], "camera": photo["camera"]},
                 "filename_hint": photo["original_filename"],
@@ -197,6 +301,7 @@ def suggest(root: Path, photo_ids: list[str], manager: ModelManager, *, authoriz
     db = connect(root)
     try:
         cities = db.execute("SELECT * FROM visited_cities ORDER BY id").fetchall()
+        ontology = load_ontology()
         results = []
         for photo_id in photo_ids:
             photo = db.execute("SELECT * FROM photos WHERE id=?", (photo_id,)).fetchone()
@@ -207,7 +312,7 @@ def suggest(root: Path, photo_ids: list[str], manager: ModelManager, *, authoriz
                 source = root / photo["managed_original_path"]
             if not source.is_file() or _hash(source) != photo["sha256"]:
                 raise ReviewConflict("Original or managed source is missing or changed")
-            fingerprint = _fingerprint(photo, cities)
+            fingerprint = _fingerprint(photo, cities, ontology["sha256"])
             existing = db.execute("SELECT * FROM catalog_suggestions WHERE photo_id=? AND fingerprint=?", (photo_id, fingerprint)).fetchone()
             if existing:
                 results.append(_public_suggestion(existing) | {"cached": True, "original_filename": photo["original_filename"]})
@@ -217,11 +322,11 @@ def suggest(root: Path, photo_ids: list[str], manager: ModelManager, *, authoriz
                 raise ReviewConflict("Verified thumbnail is missing or changed")
             inference = manager.classify(thumbnail, offline=offline)
             location = match_city(photo, cities)
-            proposed, evidence = _proposal(photo, inference, location)
+            proposed, evidence = _proposal(photo, inference, location, ontology)
             identity = str(uuid4())
             db.execute("INSERT INTO catalog_suggestions(id,photo_id,source_sha256,fingerprint,model_id,model_revision,settings_json,evidence_json,proposed_json,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
                        (identity, photo_id, photo["sha256"], fingerprint, MANIFEST["model_id"], MANIFEST["revision"],
-                        json.dumps(SETTINGS), json.dumps(evidence), json.dumps(proposed), utc_now()))
+                        json.dumps(SETTINGS | {"ontology_sha256": ontology["sha256"]}), json.dumps(evidence), json.dumps(proposed), utc_now()))
             db.commit()
             results.append(_public_suggestion(db.execute("SELECT * FROM catalog_suggestions WHERE id=?", (identity,)).fetchone()) | {"cached": False, "original_filename": photo["original_filename"]})
         return results
@@ -246,9 +351,12 @@ def suggestions(root: Path, photo_id: str) -> list[dict]:
         db.close()
 
 
-def decide(root: Path, suggestion_id: str, fields: list[str], expected_revision: int, dismiss: bool = False) -> dict:
+def decide(root: Path, suggestion_id: str, fields: list[str], expected_revision: int, dismiss: bool = False,
+           overrides: dict | None = None) -> dict:
     if set(fields) - FIELDS or not fields and not dismiss:
         raise ValueError("Choose valid fields to accept")
+    if overrides and set(overrides) - set(fields):
+        raise ValueError("Only selected suggestion fields can be edited")
     db = connect(root)
     try:
         db.execute("BEGIN IMMEDIATE")
@@ -262,10 +370,22 @@ def decide(root: Path, suggestion_id: str, fields: list[str], expected_revision:
             raise ReviewConflict("Photo or source changed; reload before accepting")
         current_photo = db.execute("SELECT sha256, thumbnail_sha256 FROM photos WHERE id=?", (row["photo_id"],)).fetchone()
         cities = db.execute("SELECT id, revision FROM visited_cities ORDER BY id").fetchall()
-        if _fingerprint(current_photo, cities) != row["fingerprint"]:
+        if _fingerprint(current_photo, cities, load_ontology()["sha256"]) != row["fingerprint"]:
             raise ReviewConflict("Suggestion is stale after city or model settings changed; rerun recognition")
         after = dict(before)
         proposed = json.loads(row["proposed_json"])
+        if overrides:
+            for field, value in overrides.items():
+                if field in {"content_tags", "condition_tags"}:
+                    if not isinstance(value, list) or any(not isinstance(tag, str) for tag in value):
+                        raise ValueError(f"{field} must be a list of labels")
+                    proposed[field] = list(dict.fromkeys(tag.strip() for tag in value if tag.strip()))
+                elif not isinstance(value, str):
+                    raise ValueError(f"{field} must be text")
+                else:
+                    proposed[field] = value.strip()
+        if proposed.get("preset_id") and "preset_id" in fields and not db.execute("SELECT 1 FROM presets WHERE id=?", (proposed["preset_id"],)).fetchone():
+            raise ValueError("Unknown draft preset")
         applied_fields = []
         for field in fields:
             if field in {"city", "country"} and (before["city"] or before["country"] or not proposed["city"] or not proposed["country"]):
@@ -282,7 +402,7 @@ def decide(root: Path, suggestion_id: str, fields: list[str], expected_revision:
             after["city"], after["country"] = proposed["city"], proposed["country"]
             applied_fields = list(set(applied_fields) | {"city", "country"})
         saved = _write(db, row["photo_id"], before, after) if applied_fields else before
-        applied = {"before": before, "after": saved, "fields": applied_fields} if applied_fields else None
+        applied = {"before": before, "after": saved, "fields": applied_fields, "overrides": overrides or {}} if applied_fields else None
         db.execute("UPDATE catalog_suggestions SET status=?, applied_json=?, decided_at=? WHERE id=?",
                    ("DISMISSED" if dismiss or not applied_fields else "ACCEPTED", json.dumps(applied) if applied else None, utc_now(), suggestion_id))
         db.commit()

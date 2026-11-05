@@ -227,7 +227,7 @@ export interface CatalogSuggestion {
   created_at: string; model_id: string; model_revision: string; cached?: boolean
   original_filename?: string
   proposed: { primary_subject: string; content_tags: string[]; condition_tags: string[]; editorial_description: string; preset_id: string; city: string; country: string }
-  evidence: { top_labels: Array<{ label: string; similarity: number }>; location: { status: string; distance_km: number | null }; warning: string }
+  evidence: { top_labels: Array<{ label: string; similarity: number }>; location: { status: string; distance_km: number | null }; warning: string; preset_reason?: string; local_recipe?: string; subject_margin?: number | null; ontology_sha256?: string }
   applied: { fields: string[] } | null
 }
 

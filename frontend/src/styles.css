@@ -302,3 +302,7 @@ kbd { display: inline-block; min-width: 21px; margin-right: 3px; padding: 2px 5p
 .export-history { gap: 7px; }
 .export-history-item { gap: 4px; padding: 8px 10px; }
 .prompt-proposal { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; }
+.provisional-note { padding: .65rem .8rem; border: 1px solid #b78c35; border-radius: .45rem; background: #fff5dc; color: #47330a; }
+.prefill-table-wrap { overflow-x: auto; }
+.prefill-table-wrap table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.prefill-table-wrap th, .prefill-table-wrap td { padding: .4rem; text-align: left; border-bottom: 1px solid #d5d5d5; vertical-align: top; }

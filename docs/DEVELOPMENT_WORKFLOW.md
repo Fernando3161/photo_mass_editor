@@ -33,3 +33,7 @@ Lightweight local/CI tests: parser/unit, database, API mocks, UI smoke, links. F
 
 ## Release
 Approved main only; git tags on intentional milestones; schema backup/migration test before upgrades. Preserve catalog export/backup paths outside Git.
+
+## Ontology prefill feature review
+
+On `dev/v2-05-ontology-prefill`, keep all edits unstaged. Use the existing repository `.venv`; `requirements.in` declares PyYAML directly and `requirements.lock` pins the same version. From a fresh PowerShell shell, verify `requirements.lock` and `frontend/package-lock.json` exist, run `python scripts/setup_env.py`, verify `.venv/Scripts/python.exe` has `sys.prefix` equal to the resolved `.venv`, then run `.venv\Scripts\python.exe -m unittest discover -s tests -q`, `npm --prefix frontend test`, and `npm --prefix frontend run build`. On Linux use `python3 scripts/setup_env.py` and `.venv/bin/python` for the same checks. Create `data/evidence/` and verify the catalog and cached model before the private pilot command described in `TESTING_AND_ACCEPTANCE.md`. The owner visually reviews the 20-photo evidence before accepting a 200-photo workflow or staging/committing this branch.

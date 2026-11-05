@@ -38,7 +38,8 @@ def detect_conflicts(*texts: str, allowance: int, semantic_change_consent: bool)
     return conflicts
 
 
-def _snapshot(db: sqlite3.Connection, photo_id: str, shared_instruction: str = "") -> tuple[dict[str, Any], sqlite3.Row, sqlite3.Row]:
+def _snapshot(db: sqlite3.Connection, photo_id: str, shared_instruction: str = "",
+              allow_missing_draft: bool = False) -> tuple[dict[str, Any], sqlite3.Row, sqlite3.Row | dict]:
     photo = db.execute(
         "SELECT id, sha256, revision, primary_subject_id FROM photos WHERE id = ?", (photo_id,)
     ).fetchone()
@@ -52,7 +53,12 @@ def _snapshot(db: sqlite3.Connection, photo_id: str, shared_instruction: str = "
         (photo_id,),
     ).fetchone()
     if draft is None:
-        raise ValueError("Save the editing draft before compiling a prompt")
+        if not allow_missing_draft:
+            raise ValueError("Save the editing draft before compiling a prompt")
+        draft = {"publication_profile_id": "website-standard-v1", "preset_id": None,
+                 "preset_name": None, "preset_version": None, "preset_instructions": None,
+                 "ai_allowance": 0, "semantic_change_consent": 0, "ai_suggestion_editable": "",
+                 "user_instructions": "", "approved_constraints": "", "analysis_run_id": None}
     profile = db.execute(
         """SELECT id, version, name, image_format, file_extension, mime, max_long_edge,
                   quality, color_space, preserve_aspect_ratio, allow_upscale, strip_metadata
@@ -144,6 +150,12 @@ def create_compiled_prompt(db: sqlite3.Connection, photo_id: str, shared_instruc
     text, conflicts = compile_text(snapshot)
     if conflicts:
         raise PromptConflict(conflicts)
+    latest = db.execute("SELECT * FROM compiled_prompts WHERE photo_id=? ORDER BY version_number DESC LIMIT 1", (photo_id,)).fetchone()
+    if (latest and not latest["user_modified"] and latest["compiled_text"] == text
+            and json.loads(latest["input_snapshot_json"]) == snapshot
+            and latest["photo_revision"] == photo["revision"] and latest["draft_revision"] == draft["revision"]
+            and not draft["compiled_prompt_stale"]):
+        return get_prompt(db, latest["id"])
     version = db.execute(
         "SELECT COALESCE(MAX(version_number), 0) + 1 FROM compiled_prompts WHERE photo_id=?", (photo_id,)
     ).fetchone()[0]
@@ -164,6 +176,32 @@ def create_compiled_prompt(db: sqlite3.Connection, photo_id: str, shared_instruc
     db.execute("UPDATE compiled_prompts SET approved_for_job=0,approved_at=NULL WHERE photo_id=? AND id<>?", (photo_id, prompt_id))
     db.execute("UPDATE review_drafts SET compiled_prompt_stale=0 WHERE photo_id=?", (photo_id,))
     return get_prompt(db, prompt_id)
+
+
+def preview_with_form(db: sqlite3.Connection, photo_id: str, form: dict) -> dict[str, Any]:
+    """Compile an ephemeral owner-editable form without changing catalog or prompt history."""
+    snapshot, photo, _ = _snapshot(db, photo_id, allow_missing_draft=True)
+    if photo["revision"] != form["expected_revision"]:
+        raise ValueError("Photo changed; reload before previewing")
+    preset_id = form.get("preset_id")
+    preset = db.execute("SELECT id,name,version,structured_instructions FROM presets WHERE id=?", (preset_id,)).fetchone() if preset_id else None
+    if preset_id and preset is None:
+        raise ValueError("Unknown draft preset")
+    profile = db.execute("SELECT * FROM publication_profiles WHERE id=? AND active=1", (form["publication_profile_id"],)).fetchone()
+    if profile is None:
+        raise ValueError("Select an active publication profile")
+    snapshot["primary_subject"] = form["primary_subject"] or None
+    snapshot["tags"] = [{"display_name": tag, "kind": kind, "source": "AI", "user_confirmed": 0}
+                        for kind, field in (("CONTENT", "content_tags"), ("CONDITION", "condition_tags"))
+                        for tag in form[field] if tag.strip()]
+    snapshot["preset"] = {"id": preset_id, "name": preset["name"] if preset else None,
+                          "version": preset["version"] if preset else None,
+                          "instructions": preset["structured_instructions"] if preset else None}
+    snapshot["publication_profile"] = dict(profile)
+    for key in ("ai_allowance", "semantic_change_consent", "ai_suggestion_editable", "user_instructions", "approved_constraints"):
+        snapshot["ai_suggestion" if key == "ai_suggestion_editable" else key] = form[key]
+    value, conflicts = compile_text(snapshot)
+    return {"proposed_text": value, "conflicts": conflicts, "profile_id": profile["id"], "unapproved": True}
 
 
 def get_prompt(db: sqlite3.Connection, prompt_id: str) -> dict[str, Any]:

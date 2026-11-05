@@ -6,21 +6,21 @@
 primary_subject:
   people:
     - person
-    - group
-    - crowd
+    - {name: group, aliases: [a group of people]}
+    - {name: crowd, aliases: [a crowd of people]}
 
   architecture_and_history:
-    - building
-    - religious building
+    - {name: building, aliases: [a building facade, a traditional building]}
+    - {name: religious building, aliases: [a church or cathedral, a temple or shrine building]}
     - palace
     - castle or fortress
     - tower
     - bridge
     - monument
-    - archaeological ruins
+    - {name: archaeological ruins, aliases: [an archaeological site]}
     - sculpture
-    - artwork
-    - museum artifact
+    - {name: artwork, aliases: [a painting in a museum]}
+    - {name: museum artifact, aliases: [an object displayed inside a museum]}
 
   urban_and_daily_life:
     - street
@@ -29,10 +29,10 @@ primary_subject:
     - skyline
     - harbor
     - food
-    - souvenir
+    - {name: souvenir, aliases: [a souvenir for sale in a shop]}
 
   nature_and_landscapes:
-    - mountain
+    - {name: mountain, aliases: [a mountain landscape]}
     - valley
     - forest
     - garden
@@ -46,26 +46,26 @@ primary_subject:
   animals_and_transport:
     - cat
     - dog
-    - other animal
+    - {name: other animal, aliases: [a wildlife photograph]}
     - boat
     - train
     - vehicle
 
 content_tags:
-  - architecture
+  - {name: architecture, aliases: [buildings and architecture]}
   - archaeology
   - heritage
   - religion
-  - museum
+  - {name: museum, aliases: [objects displayed inside a museum]}
   - art
   - culture
   - performance
-  - people
+  - {name: people, aliases: [people in the scene]}
   - animals
   - urban
   - street life
   - interior
-  - landscape
+  - {name: landscape, aliases: [a scenic landscape]}
   - nature
   - geology
   - water
@@ -74,11 +74,11 @@ content_tags:
   - markets
   - transport
   - infrastructure
-  - souvenirs
+  - {name: souvenirs, aliases: [souvenirs for sale in a shop]}
 
 condition_tags:
-  - daytime
-  - nighttime
+  - {name: daytime, aliases: [a daylight photograph outdoors]}
+  - {name: nighttime, aliases: [a night photograph outdoors]}
   - golden hour
   - twilight
   - overcast

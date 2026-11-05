@@ -9,7 +9,7 @@ import { EditPanel } from './components/EditPanel'
 import { ReviewCanvas } from './components/ReviewCanvas'
 import { CatalogPrefillPanel } from './components/CatalogPrefillPanel'
 import { ExportPanel } from './components/ExportPanel'
-import type { AnalysisEstimate, CompiledPrompt, Options, PhotoDetail, PhotoSummary, Preset, ReviewForm, ReviewState, SavePayload, RefinementEstimate, PromptRefinement } from './types'
+import type { AnalysisEstimate, CatalogSuggestion, CompiledPrompt, Options, PhotoDetail, PhotoSummary, Preset, ReviewForm, ReviewState, SavePayload, RefinementEstimate, PromptRefinement } from './types'
 import './styles.css'
 
 type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'error' | 'recovered'
@@ -53,6 +53,23 @@ function payloadFromForm(form: ReviewForm, revision: number): SavePayload {
 
 function recoveryKey(id: string) { return `photo-review-draft:${id}` }
 
+function provisionalForm(saved: ReviewForm, suggestion: CatalogSuggestion): ReviewForm {
+  const mergeTags = (existing: string, proposed: string[]) => {
+    const values = existing.split(',').map((tag) => tag.trim()).filter(Boolean)
+    for (const tag of proposed) if (!values.some((value) => value.toLowerCase() === tag.toLowerCase())) values.push(tag)
+    return values.join(', ')
+  }
+  return { ...saved,
+    primary_subject: saved.primary_subject || suggestion.proposed.primary_subject,
+    content_tags: mergeTags(saved.content_tags, suggestion.proposed.content_tags),
+    condition_tags: mergeTags(saved.condition_tags, suggestion.proposed.condition_tags),
+    editorial_description: saved.editorial_description || suggestion.proposed.editorial_description,
+    preset_id: saved.preset_id || suggestion.proposed.preset_id,
+    city: saved.city || suggestion.proposed.city,
+    country: saved.country || suggestion.proposed.country,
+  }
+}
+
 export default function App() {
   const [photos, setPhotos] = useState<PhotoSummary[]>([])
   const [options, setOptions] = useState<Options>(emptyOptions)
@@ -75,6 +92,9 @@ export default function App() {
   const [phase3Busy, setPhase3Busy] = useState(false)
   const [prompt, setPrompt] = useState<CompiledPrompt | null>(null)
   const [promptText, setPromptText] = useState('')
+  const [provisional, setProvisional] = useState<{ suggestionId: string; form: ReviewForm; reason: string; localRecipe: string } | null>(null)
+  const [preparedPreview, setPreparedPreview] = useState<{ proposed_text: string; conflicts: string[]; unapproved: boolean } | null>(null)
+  const [promptPrepared, setPromptPrepared] = useState(false)
   const [refinementEstimate, setRefinementEstimate] = useState<RefinementEstimate | null>(null)
   const [refinementAuthorized, setRefinementAuthorized] = useState(false)
   const [refinement, setRefinement] = useState<PromptRefinement | null>(null)
@@ -122,6 +142,9 @@ export default function App() {
       setPhoto(loaded)
       setSelectedVersionId(loaded.versions.find((item) => item.review_status === 'APPROVED')?.id || loaded.versions.at(-1)?.id || null)
       setForm(nextForm)
+      setProvisional(null)
+      setPreparedPreview(null)
+      setPromptPrepared(false)
       const latestPrompt = loaded.prompt_history?.[0] || null
       setPrompt(latestPrompt)
       setPromptText(latestPrompt?.compiled_text || '')
@@ -161,6 +184,8 @@ export default function App() {
     formRef.current = next
     setForm(next)
     setSaveStatus('saved')
+    setProvisional(null)
+    setPreparedPreview(null)
     localStorage.removeItem(recoveryKey(updated.id))
     const latestPrompt = updated.prompt_history?.[0] || null
     setPrompt(latestPrompt)
@@ -237,6 +262,11 @@ export default function App() {
 
   const change = <K extends keyof ReviewForm>(key: K, value: ReviewForm[K]) => {
     if (!form || !photo) return
+    if (provisional) {
+      setPreparedPreview(null)
+      setProvisional({ ...provisional, form: { ...provisional.form, [key]: value } })
+      return
+    }
     const next = {
       ...form,
       [key]: value,
@@ -248,6 +278,43 @@ export default function App() {
     setSaveStatus('unsaved')
     setError('')
     localStorage.setItem(recoveryKey(photo.id), JSON.stringify({ baseRevision: photo.revision, form: next }))
+  }
+
+  const showProvisional = (suggestion: CatalogSuggestion) => {
+    if (!form || suggestion.photo_id !== photo?.id || suggestion.status !== 'PENDING') return
+    setPreparedPreview(null)
+    setProvisional({ suggestionId: suggestion.id, form: provisionalForm(form, suggestion),
+      reason: suggestion.evidence.preset_reason || 'Suggested from visible content and conditions',
+      localRecipe: suggestion.evidence.local_recipe || 'natural' })
+    setPromptPrepared(false)
+    setWorkspaceTab('details')
+  }
+
+  useEffect(() => {
+    const previewForm = provisional?.form || (promptPrepared ? form : null)
+    if (!photo || !previewForm) return
+    let active = true
+    const timer = window.setTimeout(() => {
+      void api.previewPrompt(photo.id, payloadFromForm(previewForm, photo.revision))
+        .then((result) => { if (active) setPreparedPreview(result) })
+        .catch((reason: Error) => { if (active) setPreparedPreview({ proposed_text: '', conflicts: [reason.message], unapproved: true }) })
+    }, 250)
+    return () => { active = false; window.clearTimeout(timer) }
+  }, [provisional, promptPrepared, form, photo])
+
+  const acceptAndPrepare = async () => {
+    if (!photo || !provisional) return
+    try {
+      const p = provisional.form
+      const result = await api.decideSuggestion(provisional.suggestionId,
+        ['primary_subject', 'content_tags', 'condition_tags', 'editorial_description', 'preset_id', 'city', 'country'],
+        photo.revision, false, { primary_subject: p.primary_subject, content_tags: payloadFromForm(p, photo.revision).content_tags,
+          condition_tags: payloadFromForm(p, photo.revision).condition_tags, editorial_description: p.editorial_description,
+          preset_id: p.preset_id, city: p.city, country: p.country })
+      acceptCatalogPhoto(result.photo)
+      setPromptPrepared(result.suggestion.status === 'ACCEPTED')
+      await refreshCatalog()
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Suggestion acceptance failed') }
   }
 
   const replaceWithUnsavedForm = (next: ReviewForm) => {
@@ -356,7 +423,7 @@ export default function App() {
       setRefinementEstimate(null)
       setRefinement(null)
       setRefinementText('')
-      setPhoto((current) => current ? { ...current, prompt_history: [compiled, ...current.prompt_history] } : current)
+      setPhoto((current) => current ? { ...current, prompt_history: current.prompt_history.some((item) => item.id === compiled.id) ? current.prompt_history : [compiled, ...current.prompt_history] } : current)
       setError('')
     } catch (reason) {
       const conflicts = (reason as Error & { conflicts?: string[] }).conflicts
@@ -476,10 +543,10 @@ export default function App() {
               )}
             </nav>
             <div className="work-pane work-pane-details" role="tabpanel" id="pane-details" aria-labelledby="tab-details" hidden={workspaceTab !== 'details'}>
-              <MetadataPanel photo={photo} form={form} options={options} onChange={change} onSaveNext={() => void move(1)} onReviewNext={() => void move(1, 'REVIEWED')} onEditPreset={setPresetEdit} />
+              <MetadataPanel photo={photo} form={provisional?.form || form} options={options} onChange={change} onSaveNext={() => void move(1)} onReviewNext={() => void move(1, 'REVIEWED')} onEditPreset={setPresetEdit} provisional={Boolean(provisional)} presetReason={provisional?.reason} localRecipe={provisional?.localRecipe} onAcceptPrepare={() => void acceptAndPrepare()} onDiscard={() => { setProvisional(null); setPreparedPreview(null) }} preparedPreview={preparedPreview} onSavePreparedPrompt={() => void compilePrompt()} />
             </div>
             <div className="work-pane" role="tabpanel" id="pane-suggestions" aria-labelledby="tab-suggestions" hidden={workspaceTab !== 'suggestions'}>
-              <CatalogPrefillPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} beforeMutation={() => saveNow()} onPhoto={acceptCatalogPhoto} onCatalogRefresh={refreshCatalog} />
+              <CatalogPrefillPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} beforeMutation={() => saveNow()} onPhoto={acceptCatalogPhoto} onCatalogRefresh={refreshCatalog} onProvisional={showProvisional} />
             </div>
             <div className="work-pane" role="tabpanel" id="pane-prompt" aria-labelledby="tab-prompt" hidden={workspaceTab !== 'prompt'}>
               <PromptPanel estimate={analysisEstimate} analysisAuthorized={analysisAuthorized} busy={phase3Busy} prompt={prompt} promptText={promptText} promptHistory={photo.prompt_history || []} onEstimate={() => void estimateCurrentAnalysis()} onAuthorized={setAnalysisAuthorized} onRunAnalysis={() => void runCurrentAnalysis()} onCompile={() => void compilePrompt()} onPromptText={setPromptText} onSavePrompt={() => void savePromptVersion()} onApprovePrompt={() => void approveCurrentPrompt()} refinementEstimate={refinementEstimate} refinementAuthorized={refinementAuthorized} refinement={refinement} refinementText={refinementText} refinementHistory={refinementHistory} onEstimateRefinement={() => void estimateCurrentRefinement()} onRefinementAuthorized={setRefinementAuthorized} onRunRefinement={() => void runCurrentRefinement()} onRefinementText={setRefinementText} onReviewRefinement={reviewRefinement} onAdoptRefinement={() => void adoptCurrentRefinement()} />

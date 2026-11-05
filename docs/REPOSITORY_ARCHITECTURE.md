@@ -48,3 +48,8 @@ Use SQLite transactions/WAL, migrations and unique IDs. Stable IDs survive renam
 
 ## Deferred alternatives
 Desktop-native GUI, hosted database, distributed queue, cloud image storage, multi-agent orchestration and multi-tenant security deferred until demonstrated need.
+## V2 ontology-driven local prefill (feature branch)
+
+`config/ontology.yaml` is the owner-editable default recognition vocabulary. `backend/review/ontology.py` validates the three concept groups, canonical labels, aliases and duplicate phrases. Manual catalog labels remain unrestricted. The local CLIP adapter builds its phrase set from this file, scores one aspect-ratio-preserving whole view and, for wide images, one center view. Each concept receives half weight from its canonical phrase and half from the mean of its aliases, avoiding extra score weight for concepts with more aliases. Scores are relative similarities, not probabilities.
+
+`catalog_prefill.py` evaluates subject, content and conditions separately, applies conservative margins and subject-to-tag relationships, and records the ontology hash in suggestion settings/evidence and cache identity. The draft-preset recommendation is distinct from the local correction recipe. The browser can show provisional values in the catalog form without saving them. `prompts.preview_with_form` runs the existing deterministic compiler against that temporary form and returns conflicts without inserting prompt versions. Acceptance uses the existing suggestion/undo record; saving the prepared prompt remains an explicit action and never approves it. The local correction path continues to use its own recipe without prompt approval.
