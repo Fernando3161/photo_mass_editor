@@ -112,6 +112,12 @@ def _eligible(db: sqlite3.Connection, photo_id: str,
     ).fetchone()
     if prompt is None:
         raise EditConflict("Save and approve a current compiled prompt before editing")
+    from .prompt_rules import load_rules
+    saved_rules = json.loads(prompt["input_snapshot_json"]).get("rule_suggestions", {})
+    active_rules = load_rules()
+    if (saved_rules.get("config_sha256") != active_rules["sha256"]
+            or saved_rules.get("ontology_sha256") != active_rules["ontology_sha256"]):
+        raise EditConflict("Editing rules or ontology changed; compile and approve a new prompt")
     approved = db.execute(
         "SELECT id FROM image_versions WHERE photo_id=? AND review_status='APPROVED'", (photo_id,)
     ).fetchone()
@@ -368,6 +374,12 @@ def run_job(data_dir: Path, job_id: str, provider: EditProvider) -> dict:
         if input_item["sha256"] != row["publication_input_hash"]:
             raise ImageIntegrityError("Job input hash does not match the validated derivative")
         prompt = db.execute("SELECT * FROM compiled_prompts WHERE id=?", (row["compiled_prompt_id"],)).fetchone()
+        from .prompt_rules import load_rules
+        saved_rules = json.loads(prompt["input_snapshot_json"]).get("rule_suggestions", {})
+        active_rules = load_rules()
+        if (saved_rules.get("config_sha256") != active_rules["sha256"]
+                or saved_rules.get("ontology_sha256") != active_rules["ontology_sha256"]):
+            raise EditConflict("Editing rules or ontology changed after job authorization")
         profile = json.loads(prompt["publication_profile_snapshot_json"])
         if (prompt["source_hash"] != input_item["source_hash"]
                 or prompt["publication_profile_id"] != input_item["publication_profile_id"]):

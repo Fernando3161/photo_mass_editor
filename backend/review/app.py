@@ -68,6 +68,9 @@ class ReviewSave(BaseModel):
     publication_profile_id: str = "website-standard-v1"
     ai_allowance: int = Field(default=0, ge=0, le=10)
     ai_suggestion_editable: str = ""
+    rule_suggestions_enabled: bool = True
+    rule_selected_ids: list[str] | None = None
+    rule_instructions_override: str | None = Field(default=None, max_length=8000)
     user_instructions: str = ""
     approved_constraints: str = ""
     semantic_change_consent: bool = False
@@ -342,6 +345,8 @@ def create_app(
             raise HTTPException(status_code=404, detail="Photo not found") from exc
         except ReviewConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     def media(photo_id: str, kind: Literal["thumbnail", "original"]):
         try:

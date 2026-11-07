@@ -12,6 +12,7 @@ from backend.catalog.database import connect
 from backend.catalog.ingestion import utc_now
 from .local_model import MANIFEST, SETTINGS, ModelManager
 from .ontology import load_ontology
+from .prompt_rules import compose
 from .service import ReviewConflict, ReviewNotFound, _photo, _slug, _tags, _upsert_subject
 
 MAX_BATCH = 20
@@ -335,9 +336,14 @@ def suggest(root: Path, photo_ids: list[str], manager: ModelManager, *, authoriz
 
 
 def _public_suggestion(row) -> dict:
+    proposed = json.loads(row["proposed_json"])
+    rules = compose(proposed.get("primary_subject"), proposed.get("content_tags", []),
+                    proposed.get("condition_tags", []))
     return {"id": row["id"], "photo_id": row["photo_id"], "status": row["status"],
             "created_at": row["created_at"], "model_id": row["model_id"], "model_revision": row["model_revision"],
-            "proposed": json.loads(row["proposed_json"]), "evidence": json.loads(row["evidence_json"]),
+            "proposed": proposed, "editing_rules": {"selected_ids": rules["selected_ids"],
+                "instructions": rules["instructions"], "constraints": rules["constraints"]},
+            "evidence": json.loads(row["evidence_json"]),
             "applied": json.loads(row["applied_json"]) if row["applied_json"] else None}
 
 

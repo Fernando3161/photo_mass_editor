@@ -117,7 +117,6 @@ export function BatchPanel({ photo, selectedIds, catalogPhotos, onBeforeRun, onR
     setMessage('Selected prompts approved. A paid image run still needs its own preview and authorization.')
     await onRefresh()
   })
-  const eligiblePrompts = promptPreview?.items.filter((item) => item.eligible) || []
 
   return <div className="batch-panel edit-workbench">
     <section className="edit-control-column" aria-label="Batch controls">
@@ -138,8 +137,8 @@ export function BatchPanel({ photo, selectedIds, catalogPhotos, onBeforeRun, onR
       </> : <>
         <label><span>Optional shared instruction</span><textarea rows={4} value={instruction} maxLength={2000} onChange={(event) => { setInstruction(event.target.value); setPromptPreview(null); setPrepared([]) }} /></label>
         <button className="button-secondary" type="button" disabled={busy || !selectedIds.length} onClick={previewPrompts}>Preview per-photo prompt diffs</button>
-        <button className="button-secondary" type="button" disabled={busy || !eligiblePrompts.length || acknowledged.length !== eligiblePrompts.length} onClick={compilePrompts}>Compile acknowledged prompts</button>
-        {prepared.length > 0 && <button className="button-primary" type="button" disabled={busy} onClick={approvePrompts}>Approve these {prepared.length} prompts</button>}
+        <button className="button-secondary" type="button" disabled={busy || !acknowledged.length} onClick={compilePrompts}>Compile selected prompts</button>
+        {prepared.length > 0 && <button className="button-primary" type="button" disabled={busy} onClick={approvePrompts}>Approve {prepared.length} selected prompt{prepared.length === 1 ? '' : 's'}</button>}
         <small>Prompt approval does not authorize an image edit, semantic change, or publication.</small>
       </>}
       {message && <p role="status">{message}</p>}
@@ -164,7 +163,7 @@ export function BatchPanel({ photo, selectedIds, catalogPhotos, onBeforeRun, onR
         })}</div>
       </div>}
       {mode === 'LOCAL' && batch && <div className="edit-preview"><h4>Item receipts</h4><ol>{batch.jobs.map((job) => <li key={job.id}>{job.photo_id.slice(0, 8)} · {job.status.toLowerCase()}{job.error ? ` · ${job.error}` : ''}</li>)}</ol></div>}
-      {mode === 'PROMPTS' && promptPreview && <div className="edit-preview"><ol>{promptPreview.items.map((item) => <li key={item.photo_id}><strong>{item.photo_id.slice(0, 8)}</strong> · {item.eligible ? `profile ${item.profile_id}, allowance ${item.allowance}, semantic consent ${item.semantic_change_consent ? 'yes' : 'no'}` : `Skipped: ${item.reason}`}{item.eligible && <><details><summary>Previous and proposed prompt</summary><h4>Previous</h4><pre>{item.previous_text || 'No prior prompt'}</pre><h4>Proposed</h4><pre>{item.proposed_text}</pre></details><label className="consent-row"><input type="checkbox" checked={acknowledged.includes(item.photo_id)} onChange={(event) => setAcknowledged((current) => event.target.checked ? [...current, item.photo_id] : current.filter((id) => id !== item.photo_id))} /> I reviewed this photo's prompt diff</label></>}</li>)}</ol></div>}
+      {mode === 'PROMPTS' && promptPreview && <div className="edit-preview"><ol>{promptPreview.items.map((item) => <li key={item.photo_id}><strong>{item.photo_id.slice(0, 8)}</strong> · {item.eligible ? `profile ${item.profile_id}, allowance ${item.allowance}, semantic consent ${item.semantic_change_consent ? 'yes' : 'no'}` : `Skipped: ${item.reason}`}{item.eligible && <><details><summary>Previous and proposed prompt</summary><h4>Previous</h4><pre>{item.previous_text || 'No prior prompt'}</pre><h4>Proposed</h4><pre>{item.proposed_text}</pre></details><label className="consent-row"><input type="checkbox" checked={acknowledged.includes(item.photo_id)} onChange={(event) => setAcknowledged((current) => event.target.checked ? [...current, item.photo_id] : current.filter((id) => id !== item.photo_id))} /> I reviewed this diff and select this photo</label></>}</li>)}</ol></div>}
       {mode === 'PROMPTS' && prepared.length > 0 && <div className="edit-preview"><h4>Compiled versions awaiting approval</h4><ol>{prepared.map((prompt) => <li key={prompt.id}>{prompt.photo_id.slice(0, 8)} · v{prompt.version_number}<pre>{prompt.compiled_text}</pre></li>)}</ol></div>}
     </aside>
   </div>

@@ -110,7 +110,7 @@ class BatchTests(unittest.TestCase):
         self.assertNotIn("source_hash", str(plan))
         self.assertIn("Selection instruction:", plan["items"][0]["proposed_text"])
         with self.assertRaises(ValueError):
-            prompt_batch.compile_selected(self.data, self.ids, "Refine the local color balance.", plan["signature"], [self.ids[0]])
+            prompt_batch.compile_selected(self.data, self.ids, "Refine the local color balance.", plan["signature"], [])
         prompts = prompt_batch.compile_selected(self.data, self.ids, "Refine the local color balance.", plan["signature"], self.ids)
         self.assertEqual(len(prompts), 2)
         db = connect(self.data)

@@ -9,10 +9,11 @@ from typing import Any
 from uuid import uuid4
 
 from backend.catalog.ingestion import utc_now
+from .prompt_rules import compose, load_rules
 
 
 POLICY_VERSION = "authentic-travel-v1"
-COMPILER_VERSION = "phase03-deterministic-v1"
+COMPILER_VERSION = "ontology-rules-v1"
 TARGETS = ("sky", "people", "person", "face", "building", "architecture", "background", "statue", "sculpture")
 
 
@@ -58,7 +59,9 @@ def _snapshot(db: sqlite3.Connection, photo_id: str, shared_instruction: str = "
         draft = {"publication_profile_id": "website-standard-v1", "preset_id": None,
                  "preset_name": None, "preset_version": None, "preset_instructions": None,
                  "ai_allowance": 0, "semantic_change_consent": 0, "ai_suggestion_editable": "",
-                 "user_instructions": "", "approved_constraints": "", "analysis_run_id": None}
+                 "user_instructions": "", "approved_constraints": "", "analysis_run_id": None,
+                 "rule_suggestions_enabled": 1, "rule_selected_ids_json": None,
+                 "rule_instructions_override": None}
     profile = db.execute(
         """SELECT id, version, name, image_format, file_extension, mime, max_long_edge,
                   quality, color_space, preserve_aspect_ratio, allow_upscale, strip_metadata
@@ -76,6 +79,11 @@ def _snapshot(db: sqlite3.Connection, photo_id: str, shared_instruction: str = "
            WHERE pt.photo_id=? ORDER BY t.kind, lower(t.display_name)""",
         (photo_id,),
     )]
+    rules = compose(subject["display_name"] if subject else None,
+                    [tag["display_name"] for tag in tags if tag["kind"] == "CONTENT"],
+                    [tag["display_name"] for tag in tags if tag["kind"] == "CONDITION"],
+                    json.loads(draft["rule_selected_ids_json"]) if draft["rule_selected_ids_json"] is not None else None,
+                    bool(draft["rule_suggestions_enabled"]), bool(draft["semantic_change_consent"]))
     snapshot = {
         "source_hash": photo["sha256"],
         "primary_subject": subject["display_name"] if subject else None,
@@ -89,6 +97,10 @@ def _snapshot(db: sqlite3.Connection, photo_id: str, shared_instruction: str = "
         "ai_allowance": draft["ai_allowance"],
         "semantic_change_consent": bool(draft["semantic_change_consent"]),
         "ai_suggestion": draft["ai_suggestion_editable"],
+        "rule_suggestions": rules,
+        "rule_instructions": (draft["rule_instructions_override"] if draft["rule_instructions_override"] is not None
+                              else rules["instructions"]) if draft["rule_suggestions_enabled"] else "",
+        "rule_instructions_override": draft["rule_instructions_override"],
         "user_instructions": draft["user_instructions"],
         "approved_constraints": draft["approved_constraints"],
         "shared_instruction": shared_instruction,
@@ -104,8 +116,10 @@ def _snapshot(db: sqlite3.Connection, photo_id: str, shared_instruction: str = "
 
 
 def compile_text(snapshot: dict[str, Any]) -> tuple[str, list[str]]:
-    conflicts = detect_conflicts(
+    conflicts = list(snapshot.get("rule_suggestions", {}).get("conflicts", [])) + detect_conflicts(
         snapshot["preset"]["instructions"] or "",
+        snapshot.get("rule_instructions", ""),
+        snapshot.get("rule_suggestions", {}).get("constraints", ""),
         snapshot["ai_suggestion"],
         snapshot["user_instructions"],
         snapshot["approved_constraints"],
@@ -130,6 +144,10 @@ def compile_text(snapshot: dict[str, Any]) -> tuple[str, list[str]]:
     ]
     if snapshot["preset"]["instructions"]:
         parts.append(f"Selected preset v{snapshot['preset']['version']}: {snapshot['preset']['instructions']}")
+    if snapshot.get("rule_instructions", "").strip():
+        parts.append(f"Suggested editing instructions: {snapshot['rule_instructions'].strip()}")
+    if snapshot.get("rule_suggestions", {}).get("constraints", "").strip():
+        parts.append(f"Rule-based constraints: {snapshot['rule_suggestions']['constraints'].strip()}")
     if snapshot["ai_suggestion"].strip():
         parts.append(f"Editable analysis suggestion: {snapshot['ai_suggestion'].strip()}")
     if snapshot["user_instructions"].strip():
@@ -200,8 +218,18 @@ def preview_with_form(db: sqlite3.Connection, photo_id: str, form: dict) -> dict
     snapshot["publication_profile"] = dict(profile)
     for key in ("ai_allowance", "semantic_change_consent", "ai_suggestion_editable", "user_instructions", "approved_constraints"):
         snapshot["ai_suggestion" if key == "ai_suggestion_editable" else key] = form[key]
+    rules = compose(snapshot["primary_subject"],
+                    [tag["display_name"] for tag in snapshot["tags"] if tag["kind"] == "CONTENT"],
+                    [tag["display_name"] for tag in snapshot["tags"] if tag["kind"] == "CONDITION"],
+                    form.get("rule_selected_ids"), form.get("rule_suggestions_enabled", True),
+                    form["semantic_change_consent"])
+    snapshot["rule_suggestions"] = rules
+    snapshot["rule_instructions_override"] = form.get("rule_instructions_override")
+    snapshot["rule_instructions"] = (form["rule_instructions_override"] if form.get("rule_instructions_override") is not None
+                                    else rules["instructions"]) if form.get("rule_suggestions_enabled", True) else ""
     value, conflicts = compile_text(snapshot)
-    return {"proposed_text": value, "conflicts": conflicts, "profile_id": profile["id"], "unapproved": True}
+    return {"proposed_text": value, "conflicts": conflicts, "profile_id": profile["id"], "unapproved": True,
+            "rule_suggestions": rules, "rule_instructions": snapshot["rule_instructions"]}
 
 
 def get_prompt(db: sqlite3.Connection, prompt_id: str) -> dict[str, Any]:
@@ -211,6 +239,11 @@ def get_prompt(db: sqlite3.Connection, prompt_id: str) -> dict[str, Any]:
     item = dict(row)
     item["input_snapshot"] = json.loads(item.pop("input_snapshot_json"))
     item["publication_profile_snapshot"] = json.loads(item.pop("publication_profile_snapshot_json"))
+    if item["approved_for_job"]:
+        active = load_rules()
+        saved = item["input_snapshot"].get("rule_suggestions", {})
+        if saved.get("config_sha256") != active["sha256"] or saved.get("ontology_sha256") != active["ontology_sha256"]:
+            item["approved_for_job"] = 0
     item["input_snapshot"].pop("source_hash", None)
     item.pop("source_hash", None)
     return item
@@ -246,11 +279,14 @@ def required_prompt_lines(snapshot: dict[str, Any]) -> list[str]:
     baseline, conflicts = compile_text(snapshot)
     if conflicts:
         raise PromptConflict(conflicts)
-    return [line for line in baseline.splitlines() if line.startswith((
+    required = [line for line in baseline.splitlines() if line.startswith((
         "Use only the deterministic publication input", "Publication target:",
         "Owner instructions:", "Approved constraints:",
+        "Rule-based constraints:",
         "Application AI allowance:", "Do not introduce semantic changes",
         "Selection instruction:", "Return a separate edited version"))]
+    required.extend(snapshot.get("rule_suggestions", {}).get("constraints", "").splitlines())
+    return list(dict.fromkeys(required))
 
 
 def validate_prompt_text(snapshot: dict[str, Any], candidate: str) -> None:
@@ -281,7 +317,12 @@ def approve_prompt(db: sqlite3.Connection, prompt_id: str) -> dict[str, Any]:
             or current["publication_profile_id"] != prompt["publication_profile_id"]
             or current["compiled_prompt_stale"]):
         raise PromptConflict(["The photo or editing draft changed; compile a new prompt before approval"])
-    validate_prompt_text(json.loads(prompt["input_snapshot_json"]), prompt["compiled_text"])
+    saved_snapshot = json.loads(prompt["input_snapshot_json"])
+    active_rules = load_rules()
+    if (saved_snapshot.get("rule_suggestions", {}).get("config_sha256") != active_rules["sha256"]
+            or saved_snapshot.get("rule_suggestions", {}).get("ontology_sha256") != active_rules["ontology_sha256"]):
+        raise PromptConflict(["Editing rules or ontology changed; compile a new prompt before approval"])
+    validate_prompt_text(saved_snapshot, prompt["compiled_text"])
     db.execute("UPDATE compiled_prompts SET approved_for_job=0, approved_at=NULL WHERE photo_id=?", (prompt["photo_id"],))
     db.execute(
         "UPDATE compiled_prompts SET approved_for_job=1, approved_at=? WHERE id=?", (utc_now(), prompt_id)

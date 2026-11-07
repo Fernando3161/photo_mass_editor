@@ -31,6 +31,9 @@ export interface ReviewDraft {
   publication_profile_id: string
   ai_allowance: number
   ai_suggestion_editable: string
+  rule_suggestions_enabled: number
+  rule_selected_ids: string[] | null
+  rule_instructions_override: string | null
   user_instructions: string
   approved_constraints: string
   semantic_change_consent: number
@@ -195,6 +198,9 @@ export interface ReviewForm {
   publication_profile_id: string
   ai_allowance: number
   ai_suggestion_editable: string
+  rule_suggestions_enabled: boolean
+  rule_selected_ids: string[] | null
+  rule_instructions_override: string | null
   user_instructions: string
   approved_constraints: string
   semantic_change_consent: boolean
@@ -214,6 +220,9 @@ export interface SavePayload {
   publication_profile_id: string
   ai_allowance: number
   ai_suggestion_editable: string
+  rule_suggestions_enabled: boolean
+  rule_selected_ids: string[] | null
+  rule_instructions_override: string | null
   user_instructions: string
   approved_constraints: string
   semantic_change_consent: boolean
@@ -221,11 +230,25 @@ export interface SavePayload {
   review_state: ReviewState
 }
 
+export interface RulePreview {
+  proposed_text: string
+  conflicts: string[]
+  unapproved: boolean
+  rule_instructions: string
+  rule_suggestions: {
+    rules: Array<{ id: string; name: string; target: 'instruction' | 'constraint'; instruction: string; optional: boolean; requires_consent: boolean; selected: boolean }>
+    selected_ids: string[]
+    constraints: string
+    config_version: number
+  }
+}
+
 export interface VisitedCity { id: string; city: string; country: string; radius_km: number; revision: number }
 export interface CatalogSuggestion {
   id: string; photo_id: string; status: 'PENDING' | 'ACCEPTED' | 'DISMISSED' | 'UNDONE'
   created_at: string; model_id: string; model_revision: string; cached?: boolean
   original_filename?: string
+  editing_rules?: { selected_ids: string[]; instructions: string; constraints: string }
   proposed: { primary_subject: string; content_tags: string[]; condition_tags: string[]; editorial_description: string; preset_id: string; city: string; country: string }
   evidence: { top_labels: Array<{ label: string; similarity: number }>; location: { status: string; distance_km: number | null }; warning: string; preset_reason?: string; local_recipe?: string; subject_margin?: number | null; ontology_sha256?: string }
   applied: { fields: string[] } | null

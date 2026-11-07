@@ -219,7 +219,7 @@ class AnalysisPromptTests(unittest.TestCase):
     def test_schema_contains_publication_artifact_tables_after_phase05_migration(self):
         db = connect(self.data)
         try:
-            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 14)
+            self.assertEqual(db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0], 15)
             names = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
             self.assertTrue({"analysis_runs", "compiled_prompts", "publication_profiles", "publication_inputs"}.issubset(names))
         finally:

@@ -302,6 +302,13 @@ kbd { display: inline-block; min-width: 21px; margin-right: 3px; padding: 2px 5p
 .export-history { gap: 7px; }
 .export-history-item { gap: 4px; padding: 8px 10px; }
 .prompt-proposal { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; }
+.rule-suggestions { display: grid; gap: 8px; padding: 10px; min-width: 0; }
+.rule-suggestions .section-heading { margin: 0; }
+.rule-suggestions h4 { margin: 0 0 3px; font-size: 13px; }
+.rule-suggestions .rule-list { display: grid; gap: 3px; max-height: 180px; overflow-y: auto; }
+.rule-suggestions .consent-row { display: flex; align-items: center; gap: 5px; font-size: 11px; text-transform: none; letter-spacing: normal; }
+.rule-suggestions .consent-row small { margin-left: auto; }
+.rule-suggestions p { margin: 0; font-size: 11px; line-height: 1.4; }
 .provisional-note { padding: .65rem .8rem; border: 1px solid #b78c35; border-radius: .45rem; background: #fff5dc; color: #47330a; }
 .prefill-table-wrap { overflow-x: auto; }
 .prefill-table-wrap table { width: 100%; border-collapse: collapse; font-size: .85rem; }

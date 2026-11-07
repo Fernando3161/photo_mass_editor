@@ -9,7 +9,7 @@ import { EditPanel } from './components/EditPanel'
 import { ReviewCanvas } from './components/ReviewCanvas'
 import { CatalogPrefillPanel } from './components/CatalogPrefillPanel'
 import { ExportPanel } from './components/ExportPanel'
-import type { AnalysisEstimate, CatalogSuggestion, CompiledPrompt, Options, PhotoDetail, PhotoSummary, Preset, ReviewForm, ReviewState, SavePayload, RefinementEstimate, PromptRefinement } from './types'
+import type { AnalysisEstimate, CatalogSuggestion, CompiledPrompt, Options, PhotoDetail, PhotoSummary, Preset, ReviewForm, ReviewState, SavePayload, RefinementEstimate, PromptRefinement, RulePreview } from './types'
 import './styles.css'
 
 type SaveStatus = 'saved' | 'unsaved' | 'saving' | 'error' | 'recovered'
@@ -31,6 +31,9 @@ function formFromPhoto(photo: PhotoDetail): ReviewForm {
     publication_profile_id: photo.draft.publication_profile_id || 'website-standard-v1',
     ai_allowance: photo.draft.ai_allowance,
     ai_suggestion_editable: photo.draft.ai_suggestion_editable,
+    rule_suggestions_enabled: Boolean(photo.draft.rule_suggestions_enabled),
+    rule_selected_ids: photo.draft.rule_selected_ids,
+    rule_instructions_override: photo.draft.rule_instructions_override,
     user_instructions: photo.draft.user_instructions,
     approved_constraints: photo.draft.approved_constraints || '',
     semantic_change_consent: Boolean(photo.draft.semantic_change_consent),
@@ -93,8 +96,7 @@ export default function App() {
   const [prompt, setPrompt] = useState<CompiledPrompt | null>(null)
   const [promptText, setPromptText] = useState('')
   const [provisional, setProvisional] = useState<{ suggestionId: string; form: ReviewForm; reason: string; localRecipe: string } | null>(null)
-  const [preparedPreview, setPreparedPreview] = useState<{ proposed_text: string; conflicts: string[]; unapproved: boolean } | null>(null)
-  const [promptPrepared, setPromptPrepared] = useState(false)
+  const [preparedPreview, setPreparedPreview] = useState<RulePreview | null>(null)
   const [refinementEstimate, setRefinementEstimate] = useState<RefinementEstimate | null>(null)
   const [refinementAuthorized, setRefinementAuthorized] = useState(false)
   const [refinement, setRefinement] = useState<PromptRefinement | null>(null)
@@ -144,7 +146,6 @@ export default function App() {
       setForm(nextForm)
       setProvisional(null)
       setPreparedPreview(null)
-      setPromptPrepared(false)
       const latestPrompt = loaded.prompt_history?.[0] || null
       setPrompt(latestPrompt)
       setPromptText(latestPrompt?.compiled_text || '')
@@ -272,6 +273,7 @@ export default function App() {
       [key]: value,
       review_state: key !== 'review_state' && form.review_state === 'UNREVIEWED' ? 'IN_PROGRESS' : form.review_state,
     }
+    setPreparedPreview(null)
     editGeneration.current += 1
     formRef.current = next
     setForm(next)
@@ -286,21 +288,21 @@ export default function App() {
     setProvisional({ suggestionId: suggestion.id, form: provisionalForm(form, suggestion),
       reason: suggestion.evidence.preset_reason || 'Suggested from visible content and conditions',
       localRecipe: suggestion.evidence.local_recipe || 'natural' })
-    setPromptPrepared(false)
     setWorkspaceTab('details')
   }
 
   useEffect(() => {
-    const previewForm = provisional?.form || (promptPrepared ? form : null)
+    const previewForm = provisional?.form || form
     if (!photo || !previewForm) return
     let active = true
     const timer = window.setTimeout(() => {
       void api.previewPrompt(photo.id, payloadFromForm(previewForm, photo.revision))
         .then((result) => { if (active) setPreparedPreview(result) })
-        .catch((reason: Error) => { if (active) setPreparedPreview({ proposed_text: '', conflicts: [reason.message], unapproved: true }) })
+        .catch((reason: Error) => { if (active) setPreparedPreview({ proposed_text: '', conflicts: [reason.message], unapproved: true,
+          rule_instructions: '', rule_suggestions: { rules: [], selected_ids: [], constraints: '', config_version: 0 } }) })
     }, 250)
     return () => { active = false; window.clearTimeout(timer) }
-  }, [provisional, promptPrepared, form, photo])
+  }, [provisional, form, photo])
 
   const acceptAndPrepare = async () => {
     if (!photo || !provisional) return
@@ -312,7 +314,6 @@ export default function App() {
           condition_tags: payloadFromForm(p, photo.revision).condition_tags, editorial_description: p.editorial_description,
           preset_id: p.preset_id, city: p.city, country: p.country })
       acceptCatalogPhoto(result.photo)
-      setPromptPrepared(result.suggestion.status === 'ACCEPTED')
       await refreshCatalog()
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Suggestion acceptance failed') }
   }
@@ -325,6 +326,11 @@ export default function App() {
     setSaveStatus('unsaved')
     setError('')
     localStorage.setItem(recoveryKey(photo.id), JSON.stringify({ baseRevision: photo.revision, form: next }))
+  }
+
+  const refreshRules = () => {
+    if (!form || provisional) return
+    replaceWithUnsavedForm({ ...form, rule_selected_ids: null, rule_instructions_override: null })
   }
 
   const move = useCallback(async (delta: number, state?: ReviewState) => {
@@ -543,7 +549,7 @@ export default function App() {
               )}
             </nav>
             <div className="work-pane work-pane-details" role="tabpanel" id="pane-details" aria-labelledby="tab-details" hidden={workspaceTab !== 'details'}>
-              <MetadataPanel photo={photo} form={provisional?.form || form} options={options} onChange={change} onSaveNext={() => void move(1)} onReviewNext={() => void move(1, 'REVIEWED')} onEditPreset={setPresetEdit} provisional={Boolean(provisional)} presetReason={provisional?.reason} localRecipe={provisional?.localRecipe} onAcceptPrepare={() => void acceptAndPrepare()} onDiscard={() => { setProvisional(null); setPreparedPreview(null) }} preparedPreview={preparedPreview} onSavePreparedPrompt={() => void compilePrompt()} />
+              <MetadataPanel photo={photo} form={provisional?.form || form} options={options} onChange={change} onSaveNext={() => void move(1)} onReviewNext={() => void move(1, 'REVIEWED')} onEditPreset={setPresetEdit} provisional={Boolean(provisional)} presetReason={provisional?.reason} localRecipe={provisional?.localRecipe} onAcceptPrepare={() => void acceptAndPrepare()} onDiscard={() => { setProvisional(null); setPreparedPreview(null) }} preparedPreview={preparedPreview} onSavePreparedPrompt={() => void compilePrompt()} onRefreshRules={refreshRules} />
             </div>
             <div className="work-pane" role="tabpanel" id="pane-suggestions" aria-labelledby="tab-suggestions" hidden={workspaceTab !== 'suggestions'}>
               <CatalogPrefillPanel photo={photo} visiblePhotoIds={filtered.map((item) => item.id)} beforeMutation={() => saveNow()} onPhoto={acceptCatalogPhoto} onCatalogRefresh={refreshCatalog} onProvisional={showProvisional} />

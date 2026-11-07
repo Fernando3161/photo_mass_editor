@@ -14,7 +14,7 @@ const detail = (summary: PhotoSummary, versions: ImageVersion[] = []): PhotoDeta
   original_url: `/api/photos/${summary.id}/original`,
   editorial_description: '', lens: null, orientation: 1, capture_offset: null,
   gps_present: true, source_missing: 0, versions,
-  draft: { preset_id: null, publication_profile_id: 'website-standard-v1', ai_allowance: 0, ai_suggestion_editable: '', user_instructions: '', approved_constraints: '', semantic_change_consent: 0, analysis_run_id: null, compiled_prompt_stale: 1, draft_revision: 0, saved_at: null },
+  draft: { preset_id: null, publication_profile_id: 'website-standard-v1', ai_allowance: 0, ai_suggestion_editable: '', rule_suggestions_enabled: 1, rule_selected_ids: null, rule_instructions_override: null, user_instructions: '', approved_constraints: '', semantic_change_consent: 0, analysis_run_id: null, compiled_prompt_stale: 1, draft_revision: 0, saved_at: null },
   prompt_history: [],
 })
 
@@ -52,7 +52,7 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: {
       const ids: string[] = JSON.parse(String(init.body)).photo_ids
       return Response.json({ signature: 'prompt-preview-hash', items: ids.map((photo_id) => ({ photo_id, eligible: true, previous_text: '', proposed_text: 'Keep the scene authentic.', profile_id: 'website-standard-v1', allowance: 0, semantic_change_consent: false })) })
     }
-    if (url === '/api/prompt-batches/compile' && init?.method === 'POST') return Response.json({ prompts: JSON.parse(String(init.body)).photo_ids.map((photo_id: string) => ({ id: `prompt-${photo_id}`, photo_id, version_number: 1, compiled_text: 'Keep the scene authentic.', approval_hash: `hash-${photo_id}` })) })
+    if (url === '/api/prompt-batches/compile' && init?.method === 'POST') return Response.json({ prompts: JSON.parse(String(init.body)).acknowledged_ids.map((photo_id: string) => ({ id: `prompt-${photo_id}`, photo_id, version_number: 1, compiled_text: 'Keep the scene authentic.', approval_hash: `hash-${photo_id}` })) })
     if (url === '/api/prompt-batches/approve' && init?.method === 'POST') return Response.json({ prompts: [] })
     if (url.endsWith('/local-recommendation') || url.includes('/local-recommendation?')) return Response.json({ photo_id: url.includes('/two/') ? 'two' : 'one', photo_revision: 0, preset_id: 'natural', preset_name: 'Natural', presets: [{ id: 'natural', name: 'Natural' }], analysis_version: 'test', measurements: { luminance_p01: .1, luminance_median: .5, luminance_p99: .9, geometry_note: 'Manual geometry only.', white_balance_note: 'Conservative balance.' }, settings: { preset_id: 'natural', levels_strength: .5, black_point: .01, white_point: .99, exposure_ev: .1, red_gain: 1, blue_gain: 1, shadow_lift: .1, highlight_compression: .1, denoise: 0, sharpen: .1, straighten_deg: 0, lens_k1: 0, perspective_vertical: 0, crop: [0, 0, 1, 1] } })
     if (url.endsWith('/local-preview') && init?.method === 'POST') {
@@ -63,6 +63,7 @@ function mockFetch(saveFails = false, saveGate?: Promise<void>, edit?: {
     if (url.endsWith('/local-edits')) return Response.json({ jobs: [] })
     if (url.endsWith('/edits')) return Response.json({ jobs: [], versions: edit?.versions || [] })
     if (url === '/api/photos/one/prompts/compile' && init?.method === 'POST') return Response.json({ id: 'prompt-1', photo_id: 'one', version_number: 1, parent_prompt_id: null, compiled_text: 'Preserve documentary authenticity.', user_modified: 0, approved_for_job: 0, generated_at: 'now', approved_at: null, input_snapshot: {}, publication_profile_id: 'website-standard-v1', publication_profile_snapshot: {} })
+    if (url.endsWith('/prompts/preview') && init?.method === 'POST') return Response.json({ proposed_text: 'Keep the scene authentic.', conflicts: [], unapproved: true, rule_instructions: '', rule_suggestions: { rules: [], selected_ids: [], constraints: '', config_version: 1 } })
     if (url.endsWith('/prompt-refinements') && !init) return Response.json(refinements)
     if (url === '/api/prompts/prompt-1/refinement/estimate' && init?.method === 'POST') return Response.json({ prompt_id: 'prompt-1', provider: 'fake', model: 'fake-text', template_version: 'test', estimated_cost_usd: '0.001', note: 'Planning only.' })
     if (url === '/api/prompts/prompt-1/refinement/run' && init?.method === 'POST') return Response.json({ id: 'proposal-1', photo_id: 'one', base_prompt_id: 'prompt-1', provider: 'fake', model: 'fake-text', template_version: 'test', proposed_text: 'Preserve documentary authenticity. Improve clarity.', adoption_text: 'Preserve documentary authenticity. Improve clarity.\nRequired source rule.', restored_requirements: 1, status: 'SUCCEEDED', estimated_cost_usd: 0.001, actual_cost_usd: null, error: null, created_at: 'now' })
@@ -463,7 +464,7 @@ describe('review workstation', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => String(url) === '/api/local/batches' && init?.method === 'POST' && JSON.parse(String(init.body)).preview_signature === 'batch-preview-hash')).toBe(true))
   })
 
-  it('requires individual prompt diff acknowledgment and keeps paid execution separate', async () => {
+  it('compiles only selected reviewed prompts and keeps paid execution separate', async () => {
     const fetchMock = mockFetch()
     const user = userEvent.setup()
     render(<App />)
@@ -473,15 +474,14 @@ describe('review workstation', () => {
     await user.click(screen.getByRole('button', { name: 'Review selection in batch' }))
     await user.selectOptions(screen.getByLabelText('Batch task'), 'PROMPTS')
     await user.click(screen.getByRole('button', { name: 'Preview per-photo prompt diffs' }))
-    const compile = screen.getByRole('button', { name: 'Compile acknowledged prompts' }) as HTMLButtonElement
+    const compile = screen.getByRole('button', { name: 'Compile selected prompts' }) as HTMLButtonElement
     expect(compile.disabled).toBe(true)
-    const checks = await screen.findAllByLabelText("I reviewed this photo's prompt diff")
+    const checks = await screen.findAllByLabelText('I reviewed this diff and select this photo')
     await user.click(checks[0])
-    expect(compile.disabled).toBe(true)
-    await user.click(checks[1])
+    expect(compile.disabled).toBe(false)
     await user.click(compile)
-    expect(await screen.findByRole('button', { name: 'Approve these 2 prompts' })).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Approve these 2 prompts' }))
+    expect(await screen.findByRole('button', { name: 'Approve 1 selected prompt' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Approve 1 selected prompt' }))
     expect(fetchMock.mock.calls.filter(([url]) => String(url) === '/api/edit/batches')).toHaveLength(0)
   })
 

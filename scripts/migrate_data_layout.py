@@ -78,8 +78,8 @@ def inspect_layout(source_catalog: Path, target_root: Path) -> dict:
                 external += 1
         exports = db.execute("SELECT COUNT(*) FROM exports").fetchone()[0]
         version = db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0]
-        if version not in (8, 9, 10, 11, 12, 13, 14):
-            raise LayoutMigrationError("Source catalog must be at schema 8 through 14 before layout migration")
+        if version not in range(8, 16):
+            raise LayoutMigrationError("Source catalog must be at schema 8 through 15 before layout migration")
     finally:
         db.close()
     return {"source_catalog": str(source), "source_input": str(old_input.resolve()),

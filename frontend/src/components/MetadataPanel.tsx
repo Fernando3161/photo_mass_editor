@@ -1,4 +1,4 @@
-import type { Options, PhotoDetail, Preset, ReviewForm } from '../types'
+import type { Options, PhotoDetail, Preset, ReviewForm, RulePreview } from '../types'
 import { AutocompleteInput } from './AutocompleteInput'
 
 interface Props {
@@ -14,11 +14,12 @@ interface Props {
   localRecipe?: string
   onAcceptPrepare?: () => void
   onDiscard?: () => void
-  preparedPreview?: { proposed_text: string; conflicts: string[]; unapproved: boolean } | null
+  preparedPreview?: RulePreview | null
   onSavePreparedPrompt?: () => void
+  onRefreshRules: () => void
 }
 
-export function MetadataPanel({ photo, form, options, onChange, onReviewNext, onSaveNext, onEditPreset, provisional, presetReason, localRecipe, onAcceptPrepare, onDiscard, preparedPreview, onSavePreparedPrompt }: Props) {
+export function MetadataPanel({ photo, form, options, onChange, onReviewNext, onSaveNext, onEditPreset, provisional, presetReason, localRecipe, onAcceptPrepare, onDiscard, preparedPreview, onSavePreparedPrompt, onRefreshRules }: Props) {
   const selectedPreset = options.presets.find((preset) => preset.id === form.preset_id)
   const selectedProfile = options.publication_profiles.find((profile) => profile.id === form.publication_profile_id)
   return (
@@ -59,6 +60,19 @@ export function MetadataPanel({ photo, form, options, onChange, onReviewNext, on
         <label className="span-two"><span>Draft preset</span><div className="field-with-action"><select value={form.preset_id} onChange={(event) => onChange('preset_id', event.target.value)}><option value="">No preset</option>{options.presets.map((preset) => <option key={preset.id} value={preset.id}>{preset.name}</option>)}</select>{selectedPreset && <button type="button" className="text-button" onClick={() => onEditPreset(selectedPreset)}>Edit preset</button>}</div>{selectedPreset && <small>{selectedPreset.structured_instructions}</small>}{provisional && presetReason && <small>Recommended because: {presetReason}. Local correction recipe: {localRecipe}.</small>}</label>
         <label className="span-two range-label"><span>AI reimagining allowance: {form.ai_allowance}</span><input type="range" min="0" max="10" value={form.ai_allowance} onChange={(event) => onChange('ai_allowance', Number(event.target.value))} /><small>0 allows an authorized AI API retouch without requested scene changes; it cannot guarantee pixel fidelity. Values above 3 require explicit semantic-change consent.</small></label>
         <label className="span-two consent-row"><input type="checkbox" checked={form.semantic_change_consent} onChange={(event) => onChange('semantic_change_consent', event.target.checked)} /> I explicitly allow semantic changes for this draft</label>
+        <div className="span-two panel-section rule-suggestions">
+          <div className="section-heading"><div><h4>Suggested editing instructions</h4><small>Rule-based guidance for generative prompt preparation. Local corrections use separate settings.</small></div></div>
+          <label className="consent-row"><input type="checkbox" checked={form.rule_suggestions_enabled} disabled={provisional} onChange={(event) => onChange('rule_suggestions_enabled', event.target.checked)} /> Use rule-based suggestions for this photo</label>
+          {preparedPreview?.rule_suggestions.rules.length ? <div className="rule-list">{preparedPreview.rule_suggestions.rules.map((rule) =>
+            <label className="consent-row" key={rule.id}><input type="checkbox" checked={rule.selected} disabled={provisional || !form.rule_suggestions_enabled} onChange={(event) => {
+              const selected = preparedPreview.rule_suggestions.selected_ids
+              onChange('rule_selected_ids', event.target.checked ? [...selected, rule.id] : selected.filter((id) => id !== rule.id))
+            }} /> {rule.name}{rule.optional ? ' · optional' : ''}{rule.requires_consent ? ' · semantic consent required' : ''} <small>({rule.target})</small></label>)}</div> : <p>No matching editing rules for these tags.</p>}
+          <label><span>Generated instructions</span><textarea rows={5} value={form.rule_instructions_override ?? preparedPreview?.rule_instructions ?? ''} disabled={provisional || !form.rule_suggestions_enabled} onChange={(event) => onChange('rule_instructions_override', event.target.value)} /></label>
+          {preparedPreview?.rule_suggestions.constraints && <p><strong>Rule constraints:</strong> {preparedPreview.rule_suggestions.constraints}</p>}
+          {form.rule_instructions_override !== null && <small>Edited wording is retained when tags or selected rules change. Remove unwanted text yourself, or refresh to replace it with current rules.</small>}
+          <button type="button" className="button-secondary" disabled={provisional} onClick={onRefreshRules}>Refresh suggestions from tags</button>
+        </div>
         <label className="span-two"><span>AI suggested corrections</span><textarea value={form.ai_suggestion_editable} onChange={(event) => onChange('ai_suggestion_editable', event.target.value)} rows={2} placeholder="No analysis result adopted" /></label>
         <label className="span-two"><span>My additional instructions</span><textarea value={form.user_instructions} onChange={(event) => onChange('user_instructions', event.target.value)} rows={2} placeholder="Optional notes for a later editing run" /></label>
         <label className="span-two"><span>Approved constraints</span><textarea value={form.approved_constraints} onChange={(event) => onChange('approved_constraints', event.target.value)} rows={2} placeholder="Example: keep the sky unchanged; preserve faces" /></label>

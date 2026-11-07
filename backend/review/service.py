@@ -63,6 +63,7 @@ def _photo(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
     item["tags"] = _tags(db, photo_id)
     draft = db.execute(
         """SELECT preset_id, publication_profile_id, ai_allowance, ai_suggestion_editable, user_instructions,
+                  rule_suggestions_enabled, rule_selected_ids_json, rule_instructions_override,
                   approved_constraints, semantic_change_consent, analysis_run_id,
                   compiled_prompt_stale, revision AS draft_revision, saved_at
            FROM review_drafts WHERE photo_id = ?""",
@@ -73,6 +74,9 @@ def _photo(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
         "publication_profile_id": "website-standard-v1",
         "ai_allowance": 0,
         "ai_suggestion_editable": "",
+        "rule_suggestions_enabled": 1,
+        "rule_selected_ids_json": None,
+        "rule_instructions_override": None,
         "user_instructions": "",
         "approved_constraints": "",
         "semantic_change_consent": 0,
@@ -81,6 +85,8 @@ def _photo(db: sqlite3.Connection, photo_id: str) -> dict[str, Any]:
         "draft_revision": 0,
         "saved_at": None,
     }
+    selected_json = item["draft"].pop("rule_selected_ids_json")
+    item["draft"]["rule_selected_ids"] = json.loads(selected_json) if selected_json is not None else None
     versions = db.execute(
         """SELECT v.id, v.version_number, v.review_status, v.created_at, v.width, v.height,
                   v.reviewed_at, v.rejection_reason, v.local_job_id, v.superseded_by_version_id,
@@ -246,28 +252,40 @@ def save_photo(data_dir: Path, photo_id: str, payload: dict[str, Any]) -> dict[s
         if cursor.rowcount != 1:
             raise ReviewConflict("photo changed while saving")
         _replace_tags(db, photo_id, payload)
+        selected_ids = payload.get("rule_selected_ids")
+        if selected_ids is not None and (not isinstance(selected_ids, list) or len(selected_ids) > 100
+                                         or any(not isinstance(value, str) for value in selected_ids)
+                                         or len(set(selected_ids)) != len(selected_ids)):
+            raise ValueError("Selected rule IDs must be a unique list")
+        rule_override = payload.get("rule_instructions_override")
+        if rule_override is not None and (not isinstance(rule_override, str) or len(rule_override) > 8000):
+            raise ValueError("Rule instruction override is too long")
+        rule_values = (int(payload.get("rule_suggestions_enabled", True)),
+                       json.dumps(selected_ids) if selected_ids is not None else None, rule_override)
         existing = db.execute("SELECT id, revision FROM review_drafts WHERE photo_id = ?", (photo_id,)).fetchone()
         if existing:
             db.execute(
                 """UPDATE review_drafts SET preset_id = ?, publication_profile_id = ?, ai_allowance = ?, ai_suggestion_editable = ?,
                           user_instructions = ?, approved_constraints = ?, semantic_change_consent = ?,
-                          analysis_run_id = ?, revision = revision + 1, updated_at = ?, saved_at = ?,
+                          analysis_run_id = ?, rule_suggestions_enabled = ?, rule_selected_ids_json = ?,
+                          rule_instructions_override = ?, revision = revision + 1, updated_at = ?, saved_at = ?,
                           compiled_prompt_stale = 1 WHERE photo_id = ?""",
                 (payload["preset_id"], payload["publication_profile_id"], payload["ai_allowance"], payload["ai_suggestion_editable"],
                  payload["user_instructions"], payload["approved_constraints"],
-                 int(payload["semantic_change_consent"]), analysis_run_id, now, now, photo_id),
+                 int(payload["semantic_change_consent"]), analysis_run_id, *rule_values, now, now, photo_id),
             )
         else:
             db.execute(
                 """INSERT INTO review_drafts(
                        id, photo_id, revision, preset_id, publication_profile_id, ai_allowance, ai_suggestion_editable,
                        user_instructions, approved_constraints, semantic_change_consent,
-                       analysis_run_id, updated_at, saved_at, compiled_prompt_stale
-                   ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
+                       analysis_run_id, rule_suggestions_enabled, rule_selected_ids_json,
+                       rule_instructions_override, updated_at, saved_at, compiled_prompt_stale
+                   ) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)""",
                 (str(uuid4()), photo_id, payload["preset_id"], payload["publication_profile_id"], payload["ai_allowance"],
                  payload["ai_suggestion_editable"], payload["user_instructions"],
                  payload["approved_constraints"], int(payload["semantic_change_consent"]),
-                 analysis_run_id, now, now),
+                 analysis_run_id, *rule_values, now, now),
             )
         db.execute(
             "UPDATE compiled_prompts SET approved_for_job=0, approved_at=NULL WHERE photo_id=? AND approved_for_job=1",

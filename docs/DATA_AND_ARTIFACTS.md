@@ -45,6 +45,10 @@ The editing service checks the original SHA-256, creates a separate orientation-
 
 Server-side `OPENAI_API_KEY`, model, and planning amount are read from the process environment; no credential is sent to browser code. Restarted queued or interrupted paid jobs are not resumed automatically. Planning amounts gate runs but are not provider-enforced account limits or actual cost receipts. Phase 04 review data lives under ignored `data/phase04-review/`. Phase 05 keeps pinned local model files under ignored `data/models/`, visited-city data and suggestion provenance in private SQLite, and never uploads photos for recognition. It hashes the original or managed source before using the separately stored verified thumbnail as model input. Model downloads are checksum verified and contain no user photograph. Export moves to Phase 06.
 
+## Editing-rule provenance
+
+`config/prompt_rules.yaml` is a version-controlled, owner-editable text policy, separate from the recognition ontology. Editing-rule composition reads only catalog subject and tags; it performs no image processing and makes no paid request. An unapproved provisional preview is ephemeral. Draft rule selection and manual wording overrides persist in `review_drafts`; paid AI suggestions and owner instructions keep their own fields. Each immutable compiled prompt snapshots the selected rule IDs, rule configuration version/hash, ontology hash, tag labels, generated wording, and preservation constraints. Rule or ontology configuration changes make an earlier approval ineligible for editing until recompilation and owner approval. Migration 015 revokes readiness of existing prompts once while retaining all prior versions and media.
+
 ## Recovery
 
 Database backup and media-manifest checks should validate physical paths and hashes. Failed writes never assume successful version creation. An orphan scanner should identify missing/unreferenced media without deleting it automatically.

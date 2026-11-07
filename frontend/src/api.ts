@@ -1,4 +1,4 @@
-import type { AnalysisEstimate, AnalysisRun, CatalogSuggestion, CompiledPrompt, EditJob, EditPreview, ImageVersion, LocalJob, LocalRecommendation, LocalSettings, LocalBatchPreview, LocalBatchStatus, NamedLocalRecipe, PreparedPrompt, PromptBatchPreview, LocationPreview, Options, PhotoDetail, PhotoSummary, Preset, SavePayload, VisitedCity, RefinementEstimate, PromptRefinement } from './types'
+import type { AnalysisEstimate, AnalysisRun, CatalogSuggestion, CompiledPrompt, EditJob, EditPreview, ImageVersion, LocalJob, LocalRecommendation, LocalSettings, LocalBatchPreview, LocalBatchStatus, NamedLocalRecipe, PreparedPrompt, PromptBatchPreview, LocationPreview, Options, PhotoDetail, PhotoSummary, Preset, SavePayload, VisitedCity, RefinementEstimate, PromptRefinement, RulePreview } from './types'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, init)
@@ -107,7 +107,7 @@ export const api = {
     body: JSON.stringify({ photo_ids: photoIds, authorized }),
   }),
   compilePrompt: (photoId: string) => request<CompiledPrompt>(`/api/photos/${photoId}/prompts/compile`, { method: 'POST' }),
-  previewPrompt: (photoId: string, payload: SavePayload) => request<{ proposed_text: string; conflicts: string[]; unapproved: boolean }>(`/api/photos/${photoId}/prompts/preview`, {
+  previewPrompt: (photoId: string, payload: SavePayload) => request<RulePreview>(`/api/photos/${photoId}/prompts/preview`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   }),
   revisePrompt: (promptId: string, compiledText: string) => request<CompiledPrompt>(`/api/prompts/${promptId}`, {

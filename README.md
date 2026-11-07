@@ -280,6 +280,45 @@ On Linux, create `data/evidence/`, check those catalog/model files and `.venv/bi
 
 Possible later work includes local inpainting, RAW/HEIC support, and packaging without a Python/Node toolchain. Each needs a separate feasibility and owner decision; local inpainting remains a generative edit with derivative input, consent, an immutable pending attempt, and visual approval.
 
+## Ontology-driven editing prompt autofill
+
+`config/ontology.yaml` defines what a photograph contains. `config/prompt_rules.yaml` separately defines owner-editable editing guidance. Each rule has a stable ID, priority, target (`instruction` or `constraint`), ontology selectors, and optional default/consent/conflict settings. The server validates rule IDs and ontology labels when loading the file. No new recognition model, paid service, or image processing runs when rules are composed.
+
+In **Catalog and draft**, provisional local recognition shows an unapproved combined prompt before acceptance. A batch recognition result also shows each photo's proposed editing guidance. Accepting tags makes matching rules available in the draft; entering or changing tags manually uses the same matcher. **Suggested editing instructions** lists matched rules. The owner can deselect a default rule, select an optional rule, edit generated wording, disable rules for one photo, or use **Refresh suggestions from tags** to restore the current defaults. Edited wording and explicit selections stay in the draft when tags change; refresh deliberately replaces those overrides. If wording was edited, deselecting a rule leaves the edited text intact, so remove unwanted wording manually or refresh. Paid AI suggestions, owner instructions, and owner constraints remain separate fields.
+
+Rules compose in a stable order: primary-subject matches, content-tag matches, condition-tag matches, then owner-selected optional rules; priority and ID break ties. A rule matched by several labels appears once. Incompatible conditions suppress a rule. Explicit rule conflicts and semantic-change consent requirements block prompt compilation. People removal is unavailable when people are the primary subject; clear-sky guidance is unavailable in incompatible weather. The owner must inspect visible stars and clouds before selecting the optional very-dark-sky rule. Rule wording prepares a **generative** prompt and has no effect on the deterministic local correction engine.
+
+The prompt snapshot retains rule IDs, configuration version and SHA-256, ontology SHA-256, matched tags, selected wording, and constraints. Changing tags, draft rule settings, or owner instructions makes earlier prompt approvals stale. Editing the rule or ontology configuration requires a new prompt compilation and approval before another generative edit. Migration 015 revokes prior prompt readiness once; retain the catalog and media backup together before opening an older production catalog with this branch. Existing prompt versions and image versions remain stored. In batch prompt preparation, review each proposed prompt and select only the photos to compile; approval and any later paid image run remain separate actions.
+
+From a fresh PowerShell shell at the repository root, after the existing environment setup:
+
+```powershell
+foreach ($file in @('.venv/Scripts/python.exe', 'config/prompt_rules.yaml', 'config/ontology.yaml', 'frontend/package-lock.json')) { if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing $file; run environment setup first." } }
+New-Item -ItemType Directory -Force -Path 'frontend/dist' | Out-Null
+& .\.venv\Scripts\python.exe -c "import pathlib,sys; assert pathlib.Path(sys.prefix).resolve()==pathlib.Path('.venv').resolve()"
+if ($LASTEXITCODE -ne 0) { throw 'Wrong Python interpreter.' }
+& .\.venv\Scripts\python.exe -m unittest discover -s tests -v
+if ($LASTEXITCODE -ne 0) { throw 'Backend tests failed.' }
+npm --prefix frontend test
+if ($LASTEXITCODE -ne 0) { throw 'Frontend tests failed.' }
+npm --prefix frontend run build
+if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed.' }
+```
+
+On Linux, from the repository root after setup:
+
+```bash
+set -e
+test -f .venv/bin/python && test -f config/prompt_rules.yaml && test -f config/ontology.yaml && test -f frontend/package-lock.json || { echo 'Missing environment or configuration input' >&2; exit 1; }
+mkdir -p frontend/dist
+.venv/bin/python -c "import pathlib,sys; assert pathlib.Path(sys.prefix).resolve()==pathlib.Path('.venv').resolve()"
+.venv/bin/python -m unittest discover -s tests -v
+npm --prefix frontend test
+npm --prefix frontend run build
+```
+
+For visual review, run the documented launcher, import synthetic or owner-selected photos, and compare architecture/night, landscape/golden-hour, people, animal, transport, weather, manual tag, and batch previews before approving any prompt. Record photographic and browser layout findings separately; automated tests do not establish visual quality.
+
 ## Security and privacy
 
 This is a single-user workstation, not a public web service. The Windows launcher uses a new password per run and restricts accepted Host headers and cross-origin writes. HTTP is unencrypted, so someone observing the network could see credentials or photographs. Use a trusted private LAN; never forward the port to the internet or expose it through a public tunnel. The authenticated original-image viewer serves the original file, including any embedded EXIF. Exported website images strip metadata.

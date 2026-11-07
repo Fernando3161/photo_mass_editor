@@ -188,11 +188,17 @@ export function CatalogPrefillPanel({ photo, visiblePhotoIds, beforeMutation, on
       <button type="button" className="button-secondary" disabled={busy || !authorized || !visiblePhotoIds.length} onClick={() => void run(visiblePhotoIds.slice(0, 20))}>Suggest first {Math.min(visiblePhotoIds.length, 20)} visible</button>
     </div>
     {runResults.length > 1 && <div className="prefill-card"><p>Review these {runResults.length} prepared suggestions before bulk acceptance. Only empty scalar fields and new tags are applied.</p><div className="prefill-table-wrap"><table><thead><tr><th>Photo</th><th>Subject</th><th>Content</th><th>Conditions</th><th>Preset</th><th>Uncertain</th></tr></thead><tbody>{runResults.map((item) => <tr key={item.id}><td>{item.original_filename || item.photo_id}</td><td>{item.proposed.primary_subject || '—'}</td><td>{item.proposed.content_tags.join(', ') || '—'}</td><td>{item.proposed.condition_tags.join(', ') || '—'}</td><td>{item.proposed.preset_id}</td><td>{!item.proposed.primary_subject ? 'Subject' : item.evidence.subject_margin != null && item.evidence.subject_margin < .45 ? 'Close subject scores' : '—'}</td></tr>)}</tbody></table></div><button type="button" className="button-primary" disabled={busy || !selectedFields.length || !runResults.some((item) => item.status === 'PENDING')} onClick={() => void acceptPreparedBatch()}>Accept selected fields in prepared batch</button></div>}
+    {runResults.length > 1 && <details className="prefill-card"><summary>Per-photo provisional editing guidance</summary>
+      {runResults.map((item) => <div key={item.id}><strong>{item.original_filename || item.photo_id}</strong>
+        <pre className="prompt-proposal">{item.editing_rules?.instructions || 'No matching editing instructions.'}</pre>
+        {item.editing_rules?.constraints && <p><strong>Preserve:</strong> {item.editing_rules.constraints}</p>}</div>)}
+    </details>}
     {bulkAccepted.length > 0 && <button type="button" className="button-secondary" disabled={busy} onClick={() => void undoPreparedBatch()}>Undo {bulkAccepted.length} batch acceptances</button>}
     {suggestions.map((item) => <div className="prefill-card" key={item.id}>
       <small>{item.status} · {item.model_id} · {item.created_at}</small>
       <p><strong>Subject:</strong> {item.proposed.primary_subject || 'Uncertain'} · <strong>Tags:</strong> {[...item.proposed.content_tags, ...item.proposed.condition_tags].join(', ') || 'None'}</p>
       <p><strong>Description:</strong> {item.proposed.editorial_description || 'Uncertain'} · <strong>Preset:</strong> {item.proposed.preset_id}</p>
+      {item.editing_rules && <details><summary>Suggested editing instructions</summary><pre className="prompt-proposal">{item.editing_rules.instructions || 'No matching editing instructions.'}</pre>{item.editing_rules.constraints && <p><strong>Preserve:</strong> {item.editing_rules.constraints}</p>}</details>}
       {item.evidence.preset_reason && <p><small>{item.evidence.preset_reason}. Local correction recipe: {item.evidence.local_recipe}.</small></p>}
       <p><strong>GPS match:</strong> {item.evidence.location.status}{item.evidence.location.status === 'MATCH' ? ` · ${item.proposed.city}, ${item.proposed.country} · ${item.evidence.location.distance_km} km` : ''}</p>
       <small>Top matches: {item.evidence.top_labels.slice(0, 3).map((entry) => `${entry.label} (${entry.similarity})`).join(' · ')}</small>

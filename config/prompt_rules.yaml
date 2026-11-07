@@ -1,0 +1,228 @@
+# Owner-editable editing guidance. Match labels against config/ontology.yaml.
+# Lower priority numbers appear first. Optional rules require an explicit selection.
+version: 1
+rules:
+  - id: architecture-integrity
+    name: Preserve architecture
+    priority: 10
+    target: constraint
+    subject_groups: [architecture_and_history]
+    content_tags: [architecture, archaeology, heritage, museum]
+    instruction: Preserve architectural geometry, perspective, proportions, ornaments, and historically relevant details.
+  - id: architecture-light
+    name: Architectural lighting
+    priority: 20
+    target: instruction
+    subject_groups: [architecture_and_history]
+    content_tags: [architecture, archaeology, heritage, museum]
+    instruction: Improve architectural illumination, tonal balance, shadow definition, and perceived clarity without inventing details.
+  - id: architecture-remove-people
+    name: Remove incidental people
+    priority: 90
+    target: instruction
+    default_enabled: false
+    requires_consent: true
+    subject_groups: [architecture_and_history]
+    content_tags: [architecture, archaeology, heritage, museum]
+    incompatible_subject_groups: [people]
+    conflicts_with: [people-identity]
+    instruction: Remove incidental people and reconstruct obscured background areas naturally, without changing the principal subject.
+  - id: people-identity
+    name: Preserve identity
+    priority: 10
+    target: constraint
+    subject_groups: [people]
+    content_tags: [people]
+    instruction: Do not alter facial features, identity, body proportions, expressions, or distinguishing characteristics.
+  - id: people-natural
+    name: Natural appearance
+    priority: 11
+    target: constraint
+    subject_groups: [people]
+    content_tags: [people]
+    instruction: Preserve natural skin texture and authentic human appearance.
+  - id: people-light
+    name: People lighting
+    priority: 20
+    target: instruction
+    subject_groups: [people]
+    content_tags: [people]
+    instruction: Improve lighting and photographic clarity without reconstructing faces or bodies.
+  - id: urban-visibility
+    name: Urban visibility
+    priority: 20
+    target: instruction
+    subject_groups: [urban_and_daily_life]
+    content_tags: [urban, street life]
+    instruction: Improve clarity, lighting, contrast, and visibility of the urban scene.
+  - id: urban-blur
+    name: Recover urban clarity
+    priority: 30
+    target: instruction
+    subject_groups: [urban_and_daily_life]
+    content_tags: [urban, street life]
+    instruction: Reduce recoverable blur without fabricating details.
+  - id: urban-clear-sky
+    name: Clear sky treatment
+    priority: 90
+    target: instruction
+    default_enabled: false
+    requires_consent: true
+    subject_groups: [urban_and_daily_life]
+    content_tags: [urban, street life]
+    incompatible_conditions: [nighttime, rainy, snowy, twilight, overcast]
+    instruction: Make the sky clear and visually appealing while retaining realistic lighting and scene coherence.
+  - id: nature-color
+    name: Natural landscape color
+    priority: 20
+    target: instruction
+    subject_groups: [nature_and_landscapes]
+    content_tags: [nature, landscape]
+    instruction: Enhance natural colors, depth, tonal separation, and landscape contrast without adding geographical features.
+  - id: nature-cinematic
+    name: Cinematic photographic treatment
+    priority: 30
+    target: instruction
+    subject_groups: [nature_and_landscapes]
+    content_tags: [nature, landscape]
+    instruction: Create a visually rich cinematic photographic treatment while preserving recognizable geographical features.
+  - id: nature-authentic
+    name: Preserve landscape character
+    priority: 10
+    target: constraint
+    subject_groups: [nature_and_landscapes]
+    content_tags: [nature, landscape]
+    instruction: Retain natural-looking vegetation, water, terrain, and atmospheric conditions; do not invent geographical elements.
+  - id: nature-dramatic
+    name: Dramatic movie grade
+    priority: 90
+    target: instruction
+    default_enabled: false
+    subject_groups: [nature_and_landscapes]
+    content_tags: [nature, landscape]
+    instruction: Apply a more dramatic movie-style color grade with vibrant colors and cinematic lighting while retaining a believable photograph.
+  - id: animal-sharpness
+    name: Animal clarity
+    priority: 20
+    target: instruction
+    subjects: [cat, dog, other animal]
+    content_tags: [animals]
+    instruction: Improve sharpness and reduce recoverable blur without inventing fur or anatomy.
+  - id: animal-anatomy
+    name: Preserve animal appearance
+    priority: 10
+    target: constraint
+    subjects: [cat, dog, other animal]
+    content_tags: [animals]
+    instruction: Preserve animal anatomy, recognizable markings, fur patterns, and natural appearance.
+  - id: transport-clarity
+    name: Transport clarity
+    priority: 20
+    target: instruction
+    subjects: [boat, train, vehicle]
+    content_tags: [transport]
+    instruction: Improve clarity and visibility of the vehicle.
+  - id: transport-identity
+    name: Preserve vehicle identity
+    priority: 10
+    target: constraint
+    subjects: [boat, train, vehicle]
+    content_tags: [transport]
+    instruction: Reduce distracting glare where feasible without altering vehicle geometry, branding, or identifying details.
+  - id: transport-reflections
+    name: Reduce window reflections
+    priority: 90
+    target: instruction
+    default_enabled: false
+    subjects: [boat, train, vehicle]
+    content_tags: [transport]
+    instruction: Minimize distracting reflections on windows and reflective surfaces while preserving meaningful scene reflections.
+  - id: night-shadows
+    name: Night shadow definition
+    priority: 40
+    target: instruction
+    condition_tags: [nighttime]
+    instruction: Improve contrast and definition in dark regions while retaining believable noise levels.
+  - id: night-lights
+    name: Night illumination
+    priority: 41
+    target: instruction
+    condition_tags: [nighttime]
+    instruction: Enhance existing artificial illumination and architectural lighting without inventing light sources.
+  - id: night-sky
+    name: Natural night sky
+    priority: 42
+    target: instruction
+    condition_tags: [nighttime]
+    instruction: Deepen the night sky while preserving visible stars, clouds, twilight, and plausible lighting.
+  - id: night-highlights
+    name: Preserve night highlights
+    priority: 12
+    target: constraint
+    condition_tags: [nighttime]
+    instruction: Preserve the natural appearance of illuminated objects and highlights.
+  - id: night-dark-sky
+    name: Very dark night sky
+    priority: 90
+    target: instruction
+    default_enabled: false
+    requires_consent: true
+    condition_tags: [nighttime]
+    incompatible_conditions: [twilight]
+    conflicts_with: [night-sky]
+    instruction: Create a very dark, nearly pitch-black sky with vivid existing artificial lights only where no visible stars, clouds, or twilight would be erased.
+  - id: blurred-clarity
+    name: Recoverable sharpness
+    priority: 50
+    target: instruction
+    condition_tags: [blurred]
+    instruction: Improve recoverable clarity and sharpness without inventing missing detail.
+  - id: hazy-visibility
+    name: Haze visibility
+    priority: 50
+    target: instruction
+    condition_tags: [hazy]
+    instruction: Improve tonal separation and visibility without inventing distant details.
+  - id: low-light-exposure
+    name: Controlled low light
+    priority: 50
+    target: instruction
+    condition_tags: [low light]
+    instruction: Reduce noise and improve controlled exposure while retaining natural low-light atmosphere.
+  - id: backlit-subject
+    name: Backlit subject
+    priority: 50
+    target: instruction
+    condition_tags: [backlit]
+    instruction: Recover subject visibility while preserving highlight balance.
+  - id: harsh-shadow-detail
+    name: Harsh shadow detail
+    priority: 50
+    target: instruction
+    condition_tags: [harsh shadows]
+    instruction: Improve shadow detail without flattening the scene.
+  - id: overcast-balance
+    name: Overcast tonal balance
+    priority: 50
+    target: instruction
+    condition_tags: [overcast]
+    instruction: Optimize tonal balance while preserving realistic overcast weather.
+  - id: golden-hour-warmth
+    name: Golden hour warmth
+    priority: 50
+    target: constraint
+    condition_tags: [golden hour]
+    instruction: Preserve warm natural golden-hour lighting and believable color.
+  - id: meaningful-reflections
+    name: Preserve reflections
+    priority: 50
+    target: constraint
+    condition_tags: [reflections]
+    instruction: Preserve meaningful reflections that define the scene.
+  - id: reduce-glare
+    name: Reduce distracting glare
+    priority: 90
+    target: instruction
+    default_enabled: false
+    condition_tags: [reflections]
+    instruction: Reduce distracting glare while retaining meaningful reflections.
